@@ -331,7 +331,7 @@ class QualisysTab(Tab, qualisys_tab_class):
         disconnected = QState(parent_state)
         disconnected.assignProperty(self, "status", "Disabled")
         disconnected.assignProperty(self.pathButton, "text", "Path Mode")
-        disconnected.assignProperty(self.followButton, "text", "Follow Mode")
+        disconnected.assignProperty(self.followButton, "text", "Follow Mode?")
         disconnected.assignProperty(self.circleButton, "text", "Circle Mode")
         disconnected.assignProperty(self.recordButton, "text", "Record Mode")
         disconnected.assignProperty(self.pathButton, "enabled", False)
