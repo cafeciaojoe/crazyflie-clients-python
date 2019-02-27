@@ -217,34 +217,34 @@ class QualisysTab(Tab, qualisys_tab_class):
         self.default_flight_paths = [[
             "Path 1: Sandbox", [0.0, -1.0, 1.0, 0.0], [0.0, 1.0, 1.0, 0.0]
         ],
-                                     [
-                                         "Path 2: Height Test",
-                                         [0.0, 0.0, 0.5, 0.0],
-                                         [0.0, 0.0, 1.0, 0.0],
-                                         [0.0, 0.0, 1.5, 0.0],
-                                         [0.0, 0.0, 2.0, 0.0],
-                                         [0.0, 0.0, 2.3, 0.0],
-                                         [0.0, 0.0, 1.8, 0.0],
-                                         [0.0, 0.0, 0.5, 0.0],
-                                         [0.0, 0.0, 0.3, 0.0],
-                                         [0.0, 0.0, 0.15, 0.0]
-                                     ],
-                                     [
-                                         "Path 3: 'Spiral'",
-                                         [0.0, 0.0, 1.0, 0.0],
-                                         [0.5, 0.5, 1.0, 0.0],
-                                         [0.0, 1.0, 1.0, 0.0],
-                                         [-0.5, 0.5, 1.0, 0.0],
-                                         [0.0, 0.0, 1.0, 0.0],
-                                         [0.5, 0.5, 1.2, 0.0],
-                                         [0.0, 1.0, 1.4, 0.0],
-                                         [-0.5, 0.5, 1.6, 0.0],
-                                         [0.0, 0.0, 1.8, 0.0],
-                                         [0.5, 0.5, 1.5, 0.0],
-                                         [0.0, 1.0, 1.0, 0.0],
-                                         [-0.5, 0.5, 0.5, 0.0],
-                                         [0.0, 0.0, 0.25, 0.0]
-                                     ]]
+            [
+                "Path 2: Height Test",
+                [0.0, 0.0, 0.5, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.5, 0.0],
+                [0.0, 0.0, 2.0, 0.0],
+                [0.0, 0.0, 2.3, 0.0],
+                [0.0, 0.0, 1.8, 0.0],
+                [0.0, 0.0, 0.5, 0.0],
+                [0.0, 0.0, 0.3, 0.0],
+                [0.0, 0.0, 0.15, 0.0]
+            ],
+            [
+                "Path 3: 'Spiral'",
+                [0.0, 0.0, 1.0, 0.0],
+                [0.5, 0.5, 1.0, 0.0],
+                [0.0, 1.0, 1.0, 0.0],
+                [-0.5, 0.5, 1.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.5, 0.5, 1.2, 0.0],
+                [0.0, 1.0, 1.4, 0.0],
+                [-0.5, 0.5, 1.6, 0.0],
+                [0.0, 0.0, 1.8, 0.0],
+                [0.5, 0.5, 1.5, 0.0],
+                [0.0, 1.0, 1.0, 0.0],
+                [-0.5, 0.5, 0.5, 0.0],
+                [0.0, 0.0, 0.25, 0.0]
+            ]]
 
         # The position and rotation of the cf and wand obtained by the
         # camera tracking, if it cant be tracked the position becomes Nan
@@ -848,7 +848,7 @@ class QualisysTab(Tab, qualisys_tab_class):
         self.connectQtmButton.setText('Connect QTM')
         self.qtmStatus = ': not connected : {}'.format(
             reason if reason is not None else ''
-            )
+        )
 
         self.switch_flight_mode(FlightModeStates.DISCONNECTED)
 
@@ -942,7 +942,7 @@ class QualisysTab(Tab, qualisys_tab_class):
         self.path_index = 1
 
         current = self.flight_paths[self.pathSelector.
-                                    currentIndex()]
+            currentIndex()]
         self.current_goal_pos = Position(
             current[self.path_index][0],
             current[self.path_index][1],
@@ -1059,7 +1059,7 @@ class QualisysTab(Tab, qualisys_tab_class):
                             Position(self.current_goal_pos.x,
                                      self.current_goal_pos.y,
                                      (self.current_goal_pos.z / self.land_rate
-                                      ))) < self.path_pos_threshold:
+                                     ))) < self.path_pos_threshold:
                         self.land_rate *= 1.1
 
                     if self.land_rate > 1000:
@@ -1085,7 +1085,7 @@ class QualisysTab(Tab, qualisys_tab_class):
                         if position_hold_timer > self.position_hold_timelimit:
 
                             current = self.flight_paths[self.pathSelector.
-                                                        currentIndex()]
+                                currentIndex()]
 
                             self.path_index += 1
                             if self.path_index == len(current):
@@ -1167,29 +1167,30 @@ class QualisysTab(Tab, qualisys_tab_class):
                         self.length_from_wand = .5
                         # self.length_from_wand = (2 * (
                         #     (self.wand_pos.roll + 90) / 180) - 1) + 2
-                        self.send_setpoint(
-                            self.scf,Position(
-                                self.wand_pos.x + round(
-                                    math.cos(math.radians(self.wand_pos.yaw)),
-                                    4) * self.length_from_wand,
-                                self.wand_pos.y + round(
-                                    math.sin(math.radians(self.wand_pos.yaw)),
-                                    4) * self.length_from_wand,
-                                (((self.wand_pos.z + round(
-                                    math.sin(
-                                        math.radians(self.wand_pos.pitch)), 4)
-                                  * self.length_from_wand) if
-                                 ((self.wand_pos.z + round(
-                                     math.sin(
-                                         math.radians(self.wand_pos.pitch)), 4)
-                                   * self.length_from_wand) > 0) else 0) if
-                                    ((self.wand_pos.z + round(
-                                    math.sin(
-                                    math.radians(self.wand_pos.pitch)), 4)
-                                    * self.length_from_wand) < 1.5) else 1.5)))
+
+                       # """
+                        newx = self.wand_pos.x + round( math.cos(math.radians(self.wand_pos.yaw)), 4) * self.length_from_wand
+                        newy = self.wand_pos.y + round(math.sin(math.radians(self.wand_pos.yaw)), 4) * self.length_from_wand
+                        newz = self.wand_pos.z + round(math.sin(math.radians(self.wand_pos.pitch)), 4) * self.length_from_wand
+                        if(newx < -1):
+                            newx = -1
+                        if(newx > 1):
+                            newx = 1
+                        if(newy < -1):
+                            newy = -1
+                        if(newy > 1):
+                            newy = 1
+                        if(newz < 0):
+                            newz = 0
+                        if(newz > 1.5):
+                            newz = 1.5
+                        #"""
+
+
+                        self.send_setpoint(self.scf, Position(newx, newy, newz))
                     else:
                         self.length_from_wand = (2 * (
-                            (self.last_valid_wand_pos.roll + 90) / 180) -
+                                (self.last_valid_wand_pos.roll + 90) / 180) -
                                                  1) + 2
                         self.send_setpoint(
                             self.scf,
@@ -1336,7 +1337,7 @@ class QualisysTab(Tab, qualisys_tab_class):
 
         QMessageBox.about(
             self, "Example error", "Error when using log config"
-            " [{0}]: {1}".format(log_conf.name, msg))
+                                   " [{0}]: {1}".format(log_conf.name, msg))
 
     def wait_for_position_estimator(self, scf):
         logger.info('Waiting for estimator to find stable position...')
@@ -1380,10 +1381,10 @@ class QualisysTab(Tab, qualisys_tab_class):
 
                 if (max_x - min_x) < threshold and (
                         max_y - min_y) < threshold and (
-                            max_z - min_z) < threshold:
+                        max_z - min_z) < threshold:
                     logger.info(
                         "Position found with error in, x: {}, y: {}, z: {}".
-                        format(max_x - min_x, max_y - min_y, max_z - min_z))
+                            format(max_x - min_x, max_y - min_y, max_z - min_z))
 
                     self.cfStatus = ": connected"
 
@@ -1410,8 +1411,8 @@ class QualisysTab(Tab, qualisys_tab_class):
         # Handle client input control.
         # Disable gamepad input if we are not grounded
         if self.flight_mode in [
-                FlightModeStates.GROUNDED, FlightModeStates.DISCONNECTED,
-                FlightModeStates.RECORD
+            FlightModeStates.GROUNDED, FlightModeStates.DISCONNECTED,
+            FlightModeStates.RECORD
         ]:
             self._helper.mainUI.disable_input(False)
         else:
