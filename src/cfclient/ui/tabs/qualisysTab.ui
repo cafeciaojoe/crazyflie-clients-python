@@ -328,49 +328,36 @@
               </property>
              </widget>
             </item>
-            <item>
-             <widget class="QPushButton" name="emergencyButton">
-              <property name="enabled">
-               <bool>false</bool>
-              </property>
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="minimumSize">
-               <size>
-                <width>0</width>
-                <height>20</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>16777215</width>
-                <height>16777215</height>
-               </size>
-              </property>
-              <property name="text">
-               <string>Kill engines</string>
-              </property>
-             </widget>
-            </item>
            </layout>
           </widget>
          </item>
          <item>
-          <spacer name="verticalSpacer_4">
-           <property name="orientation">
-            <enum>Qt::Vertical</enum>
+          <widget class="QPushButton" name="emergencyButton">
+           <property name="enabled">
+            <bool>false</bool>
            </property>
-           <property name="sizeHint" stdset="0">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
             <size>
-             <width>20</width>
-             <height>40</height>
+             <width>0</width>
+             <height>20</height>
             </size>
            </property>
-          </spacer>
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>Kill engines</string>
+           </property>
+          </widget>
          </item>
         </layout>
        </item>
@@ -418,7 +405,7 @@
                <number>60</number>
               </attribute>
               <attribute name="verticalHeaderDefaultSectionSize">
-               <number>20</number>
+               <number>22</number>
               </attribute>
              </widget>
             </item>
@@ -537,30 +524,10 @@
               </property>
              </widget>
             </item>
-            <item row="0" column="1">
-             <widget class="QLabel" name="label_4">
+            <item row="2" column="1">
+             <widget class="QLabel" name="label_3">
               <property name="text">
-               <string>Radius (m)</string>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="0">
-             <widget class="QLineEdit" name="posHoldCircleBox">
-              <property name="maximumSize">
-               <size>
-                <width>30</width>
-                <height>16777215</height>
-               </size>
-              </property>
-              <property name="text">
-               <string>0.5</string>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="1">
-             <widget class="QLabel" name="label_5">
-              <property name="text">
-               <string>Position hold (s)</string>
+               <string>Resolution (deg)</string>
               </property>
              </widget>
             </item>
@@ -577,10 +544,30 @@
               </property>
              </widget>
             </item>
-            <item row="2" column="1">
-             <widget class="QLabel" name="label_3">
+            <item row="0" column="1">
+             <widget class="QLabel" name="label_4">
               <property name="text">
-               <string>Resolution (deg)</string>
+               <string>Radius (m)</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="QLabel" name="label_5">
+              <property name="text">
+               <string>Position hold (s)</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLineEdit" name="posHoldCircleBox">
+              <property name="maximumSize">
+               <size>
+                <width>30</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>0.5</string>
               </property>
              </widget>
             </item>
@@ -986,7 +973,6 @@
   <tabstop>followButton</tabstop>
   <tabstop>recordButton</tabstop>
   <tabstop>landButton</tabstop>
-  <tabstop>emergencyButton</tabstop>
   <tabstop>flightPathDataTable</tabstop>
   <tabstop>posHoldPathBox</tabstop>
   <tabstop>pathSelector</tabstop>

@@ -1164,25 +1164,29 @@ class QualisysTab(Tab, qualisys_tab_class):
                         self.last_valid_wand_pos = self.wand_pos
 
                         # Fit the angle of the wand in the interval 0-4
-                        self.length_from_wand = (2 * (
-                            (self.wand_pos.roll + 90) / 180) - 1) + 2
+                        self.length_from_wand = .5
+                        # self.length_from_wand = (2 * (
+                        #     (self.wand_pos.roll + 90) / 180) - 1) + 2
                         self.send_setpoint(
-                            self.scf,
-                            Position(
+                            self.scf,Position(
                                 self.wand_pos.x + round(
                                     math.cos(math.radians(self.wand_pos.yaw)),
                                     4) * self.length_from_wand,
                                 self.wand_pos.y + round(
                                     math.sin(math.radians(self.wand_pos.yaw)),
                                     4) * self.length_from_wand,
-                                ((self.wand_pos.z + round(
+                                (((self.wand_pos.z + round(
                                     math.sin(
                                         math.radians(self.wand_pos.pitch)), 4)
                                   * self.length_from_wand) if
                                  ((self.wand_pos.z + round(
                                      math.sin(
                                          math.radians(self.wand_pos.pitch)), 4)
-                                   * self.length_from_wand) > 0) else 0)))
+                                   * self.length_from_wand) > 0) else 0) if
+                                    ((self.wand_pos.z + round(
+                                    math.sin(
+                                    math.radians(self.wand_pos.pitch)), 4)
+                                    * self.length_from_wand) < 1.5) else 1.5)))
                     else:
                         self.length_from_wand = (2 * (
                             (self.last_valid_wand_pos.roll + 90) / 180) -
