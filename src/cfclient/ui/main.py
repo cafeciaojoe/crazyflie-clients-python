@@ -237,7 +237,7 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
         self._menuItem_openconfigfolder.triggered.connect(
             self._open_config_folder)
 
-        self.address.setValue(0xE7E7E7E7E7)
+        self.address.setValue(0xA1A1A1A1A1)
 
         self._auto_reconnect_enabled = Config().get("auto_reconnect")
         self.autoReconnectCheckBox.toggled.connect(
