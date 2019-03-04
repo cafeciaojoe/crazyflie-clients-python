@@ -1126,6 +1126,9 @@ class QualisysTab(Tab, qualisys_tab_class):
                 elif self.flight_mode == FlightModeStates.CIRCLE:
                     self.send_setpoint(self.scf, self.current_goal_pos)
 
+                    fast = self.circle_resolution_fast
+                    slow = self.circle_resolution_slow
+
                     # Check if the cf has reached the goal position,
                     # if it has set a new goal position
                     if self.valid_cf_pos.distance_to(
@@ -1135,7 +1138,7 @@ class QualisysTab(Tab, qualisys_tab_class):
                             self.last_valid_wand_pos = self.wand_pos
 
                             # Fit the angle of the wand in the interval 0-4
-                            self.length_from_wand = .5
+                            self.length_from_wand = 1
                             # self.length_from_wand = (2 * (
                             #     (self.wand_pos.roll + 90) / 180) - 1) + 2
 
@@ -1146,18 +1149,17 @@ class QualisysTab(Tab, qualisys_tab_class):
                                                            4) * self.length_from_wand
                             PointZ = self.wand_pos.z + round(math.sin(math.radians(self.wand_pos.pitch)),
                                                            4) * self.length_from_wand
-                            fast = self.circle_resolution_fast
-                            slow = self.circle_resolution_slow
+
                             #this adds a little room for the x y and z values.
-                            leeway = .1
-                            if (self.current_goal_pos.z-leeway) <= PointZ <= (self.current_goal_pos.z+leeway):
-                                logger.info(PointZ)
-                                self.circle_resolution = slow
-                                #these fast and slow resolutions are set in __init__
+                            leeway = .5
+                            if ((self.current_goal_pos.x-leeway) <= PointX <= (self.current_goal_pos.x+leeway)):
+                                if (abs(self.current_goal_pos.y)-leeway) <= abs(PointY) <= abs((self.current_goal_pos.y+leeway)):
+                                    if (abs(self.current_goal_pos.z)-leeway) <= abs(PointZ) <= abs(self.current_goal_pos.z+leeway):
+                                        logger.info(PointZ)
+                                        self.circle_resolution = slow
+                                        # these fast and slow resolutions are set in __init__
                             else:
                                 self.circle_resolution = fast
-
-
 
                             # """
 
