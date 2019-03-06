@@ -217,6 +217,7 @@ class QualisysTab(Tab, qualisys_tab_class):
         self.circle_resolution = 25
         self.circle_resolution_slow = 4
         self.circle_resolution_fast = 30
+        self.counterX = 0
         self.position_hold_timelimit = 0.1
         self.length_from_wand = 2.0
         self.circle_height = 1.2
@@ -971,7 +972,9 @@ class QualisysTab(Tab, qualisys_tab_class):
             self.circle_height,
             yaw=self.circle_angle)
 
-        logger.info('Setting position {}'.format(
+        self.last_valid_wand_pos = Position(0, 0, 1)
+
+        logger.info('Setting position from light_mode_circle_entered definition {}'.format(
             self.current_goal_pos))
         self._event.set()
 
@@ -1129,6 +1132,9 @@ class QualisysTab(Tab, qualisys_tab_class):
                     fast = self.circle_resolution_fast
                     slow = self.circle_resolution_slow
 
+                    # counterX = 0
+                    # logger.info('counter started at 0')
+
                     # Check if the cf has reached the goal position,
                     # if it has set a new goal position
                     if self.valid_cf_pos.distance_to(
@@ -1136,6 +1142,7 @@ class QualisysTab(Tab, qualisys_tab_class):
 
                         if self.wand_pos.is_valid():
                             self.last_valid_wand_pos = self.wand_pos
+                            # logger.info(self.wand_pos)
 
                             # Fit the angle of the wand in the interval 0-4
                             self.length_from_wand = 1
@@ -1143,25 +1150,37 @@ class QualisysTab(Tab, qualisys_tab_class):
                             #     (self.wand_pos.roll + 90) / 180) - 1) + 2
 
                             # """
-                            PointX = self.wand_pos.x + round(math.cos(math.radians(self.wand_pos.yaw)),
-                                                           4) * self.length_from_wand
-                            PointY = self.wand_pos.y + round(math.sin(math.radians(self.wand_pos.yaw)),
-                                                           4) * self.length_from_wand
-                            PointZ = self.wand_pos.z + round(math.sin(math.radians(self.wand_pos.pitch)),
-                                                           4) * self.length_from_wand
+                            #Point XX is the x point in space that is length_from_wand away from the wand
+                            PointX = self.wand_pos.x
+                            PointXX = self.wand_pos.x + round(math.cos(math.radians(self.wand_pos.yaw)),4) * self.length_from_wand
+
+                            PointY = self.wand_pos.y
+                            PointYY = self.wand_pos.y + round(math.sin(math.radians(self.wand_pos.yaw)),4) * self.length_from_wand
+
+                            PointZ = self.wand_pos.z
+                            PointZZ = self.wand_pos.z + round(math.sin(math.radians(self.wand_pos.pitch)),4) * self.length_from_wand
+
+
 
                             #this adds a little room for the x y and z values.
-                            leeway = .5
-                            if ((self.current_goal_pos.x-leeway) <= PointX <= (self.current_goal_pos.x+leeway)):
-                                if (abs(self.current_goal_pos.y)-leeway) <= abs(PointY) <= abs((self.current_goal_pos.y+leeway)):
-                                    if (abs(self.current_goal_pos.z)-leeway) <= abs(PointZ) <= abs(self.current_goal_pos.z+leeway):
-                                        logger.info(PointZ)
-                                        self.circle_resolution = slow
-                                        # these fast and slow resolutions are set in __init__
+                            leeway = .2
+                            # if point xx yy and zz are pointing at the drone, it slows down.
+                            if ((self.valid_cf_pos.x- leeway) <= PointXX < (self.valid_cf_pos.x + leeway)):
+                                if ((self.current_goal_pos.y - leeway) <= PointYY < (self.current_goal_pos.y + leeway)):
+                                    # if ((self.current_goal_pos.z - leeway) <= PointZZ < (self.current_goal_pos.z + leeway)):
+                                    self.circle_resolution = slow
+
                             else:
                                 self.circle_resolution = fast
 
-                            # """
+                        else:
+                            self.counterX += 1
+                            # logger.info(self.counterX)
+                            if self.counterX > 200:
+                                self.circle_resolution = fast
+                                self.counterX = 0
+                                # logger.info('wand lost counter reset')
+                                # logger.info(self.wand_pos)
 
                         if position_hold_timer >= self.position_hold_timelimit:
 
@@ -1184,8 +1203,18 @@ class QualisysTab(Tab, qualisys_tab_class):
                                 self.circle_height,
                                 yaw=self.circle_angle)
 
-                            logger.info('Setting position {}'.format(
-                                self.current_goal_pos))
+                            # logger.info('Setting position {}'.format(
+                            #     self.current_goal_pos))
+
+                            # logger.info('Circle Res = {}'.format(self.circle_resolution))
+
+                            # logger.info('{} - {} = {}'.format(self.current_goal_pos.x, leeway, self.current_goal_pos.x-leeway))
+                            # logger.info('PointXX = {}'.format(PointXX))
+                            # logger.info('{} + {} = {}'.format(self.current_goal_pos.x, leeway, self.current_goal_pos.x + leeway))
+                            #
+                            # logger.info('{} - {} = {}'.format(self.current_goal_pos.x, leeway, self.current_goal_pos.x-leeway))
+                            # logger.info('PointYY = {}'.format(PointYY))
+                            # logger.info('{} + {} = {}'.format(self.current_goal_pos.x, leeway, self.current_goal_pos.x + leeway))
 
                         elif position_hold_timer == 0:
 
