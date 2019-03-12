@@ -216,11 +216,13 @@ class QualisysTab(Tab, qualisys_tab_class):
         self.circle_radius = .5
         self.circle_resolution = 25
         self.circle_resolution_slow = 4
-        self.circle_resolution_fast = 30
+        self.circle_resolution_fast = 25
+
         self.counterX = 0
         self.position_hold_timelimit = 0.1
         self.length_from_wand = 2.0
         self.circle_height = 1.2
+        self.circle_height_min = .2
         self.new_path = []
         self.recording = False
         self.land_for_recording = False
@@ -1163,7 +1165,7 @@ class QualisysTab(Tab, qualisys_tab_class):
 
 
                             #this adds a little room for the x y and z values.
-                            leeway = .2
+                            leeway = .25
                             # if point xx yy and zz are pointing at the drone, it slows down.
                             if ((self.valid_cf_pos.x- leeway) <= PointXX < (self.valid_cf_pos.x + leeway)):
                                 if ((self.current_goal_pos.y - leeway) <= PointYY < (self.current_goal_pos.y + leeway)):
@@ -1179,7 +1181,7 @@ class QualisysTab(Tab, qualisys_tab_class):
                             if self.counterX > 200:
                                 self.circle_resolution = fast
                                 self.counterX = 0
-                                # logger.info('wand lost counter reset')
+                                logger.info('wand lost counter reset')
                                 # logger.info(self.wand_pos)
 
                         if position_hold_timer >= self.position_hold_timelimit:
@@ -1187,35 +1189,26 @@ class QualisysTab(Tab, qualisys_tab_class):
                             position_hold_timer = 0
 
                             # increment the angle
-                            self.circle_angle = ((self.circle_angle +
-                                                  self.circle_resolution)
-                                                 % 360)
+                            self.circle_angle = ((self.circle_angle + self.circle_resolution)% 360)
 
                             # Calculate the next position in
                             # the circle to fly to
-                            self.current_goal_pos = Position(
-                                round(
-                                    math.cos(math.radians(self.circle_angle)),
-                                    4) * self.circle_radius,
-                                round(
-                                    math.sin(math.radians(self.circle_angle)),
-                                    4) * self.circle_radius,
-                                self.circle_height,
-                                yaw=self.circle_angle)
+                            # original
+                            # what does the yaw do?
+                            # self.current_goal_pos = Position(
+                            #     round(
+                            #         math.cos(math.radians(self.circle_angle)),
+                            #         4) * self.circle_radius,
+                            #     round(
+                            #         math.sin(math.radians(self.circle_angle)),
+                            #         4) * self.circle_radius,
+                            #     self.circle_height,
+                            #     yaw=self.circle_angle)
 
-                            # logger.info('Setting position {}'.format(
-                            #     self.current_goal_pos))
+                            self.current_goal_pos = Position((round(math.cos(math.radians(self.circle_angle)),4) * self.circle_radius),(round(math.sin(math.radians(self.circle_angle)),4) * self.circle_radius), self.circle_radius + self.circle_height_min + (round(math.cos(math.radians(self.circle_angle)),4) * self.circle_radius))
 
-                            # logger.info('Circle Res = {}'.format(self.circle_resolution))
-
-                            # logger.info('{} - {} = {}'.format(self.current_goal_pos.x, leeway, self.current_goal_pos.x-leeway))
-                            # logger.info('PointXX = {}'.format(PointXX))
-                            # logger.info('{} + {} = {}'.format(self.current_goal_pos.x, leeway, self.current_goal_pos.x + leeway))
+                            #self.current_goal_pos = Position((round(math.cos(math.radians(self.circle_angle)), 4) * self.circle_radius),0,self.circle_radius + self.circle_height_min + round(math.cos(math.radians(self.circle_angle)),4) * self.circle_radius)
                             #
-                            # logger.info('{} - {} = {}'.format(self.current_goal_pos.x, leeway, self.current_goal_pos.x-leeway))
-                            # logger.info('PointYY = {}'.format(PointYY))
-                            # logger.info('{} + {} = {}'.format(self.current_goal_pos.x, leeway, self.current_goal_pos.x + leeway))
-
                         elif position_hold_timer == 0:
 
                             time_of_pos_reach = time.time()
@@ -1224,9 +1217,12 @@ class QualisysTab(Tab, qualisys_tab_class):
                             # Setting it higher than the imit will
                             # break the code.
                             position_hold_timer = 0.0001
+                            logger.info('Setting position {}'.format(
+                                self.current_goal_pos))
                         else:
                             position_hold_timer = time.time(
                             ) - time_of_pos_reach
+
 
                 elif self.flight_mode == FlightModeStates.FOLLOW:
 
