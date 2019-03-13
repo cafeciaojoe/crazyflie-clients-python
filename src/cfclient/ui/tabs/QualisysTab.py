@@ -1222,15 +1222,15 @@ class QualisysTab(Tab, qualisys_tab_class):
                             # the circle to fly to
                             # what does the yaw do?
                             """circle in the XY Plane"""
-                            self.current_goal_pos = Position(
-                                round(
-                                    math.cos(math.radians(self.circle_angle)),
-                                    4) * self.circle_radius,
-                                round(
-                                    math.sin(math.radians(self.circle_angle)),
-                                    4) * self.circle_radius,
-                                self.circle_height,
-                                yaw=self.circle_angle)
+                            # self.current_goal_pos = Position(
+                            #     round(
+                            #         math.cos(math.radians(self.circle_angle)),
+                            #         4) * self.circle_radius,
+                            #     round(
+                            #         math.sin(math.radians(self.circle_angle)),
+                            #         4) * self.circle_radius,
+                            #     self.circle_height,
+                            #     yaw=self.circle_angle)
 
                             """circle across XYZ planes"""
                             # copied c values to z and added height
@@ -1242,6 +1242,9 @@ class QualisysTab(Tab, qualisys_tab_class):
 
                             """hover for testing other things"""
                             #self.current_goal_pos = Position(-.6,.6,1)
+
+                            """figure eight in XY plane"""
+                            self.current_goal_pos = Position((round(math.sin(math.radians(self.circle_angle)),4) * self.circle_radius),((round(math.sin(math.radians(self.circle_angle)),4))*(round(math.cos(math.radians(self.circle_angle)),4)) * self.circle_radius),self.circle_height)
 
                         elif position_hold_timer == 0:
 
