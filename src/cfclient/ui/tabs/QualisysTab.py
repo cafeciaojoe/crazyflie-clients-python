@@ -216,7 +216,7 @@ class QualisysTab(Tab, qualisys_tab_class):
         self.circle_radius = .5
         self.circle_resolution = 25
         self.circle_resolution_slow = 4
-        self.circle_resolution_fast = 25
+        self.circle_resolution_fast = 15
 
         self.counterX = 0
         self.position_hold_timelimit = 0.1
@@ -262,6 +262,8 @@ class QualisysTab(Tab, qualisys_tab_class):
         # camera tracking, if it cant be tracked the position becomes Nan
         self.cf_pos = Position(0, 0, 0)
         self.wand_pos = Position(0, 0, 0)
+        self.end_of_wand = Position(0,0,0)
+        self.current_wand_range = Position(0,0,0)
 
         # The regular cf_pos can a times due to lost tracing become Nan,
         # this the latest known valid cf position
@@ -1147,33 +1149,58 @@ class QualisysTab(Tab, qualisys_tab_class):
                             # logger.info(self.wand_pos)
 
                             # Fit the angle of the wand in the interval 0-4
-                            self.length_from_wand = 1
+                            self.length_from_wand = 2
                             # self.length_from_wand = (2 * (
                             #     (self.wand_pos.roll + 90) / 180) - 1) + 2
 
                             # """
-                            #Point XX is the x point in space that is length_from_wand away from the wand
-                            PointX = self.wand_pos.x
-                            PointXX = self.wand_pos.x + round(math.cos(math.radians(self.wand_pos.yaw)),4) * self.length_from_wand
-
-                            PointY = self.wand_pos.y
-                            PointYY = self.wand_pos.y + round(math.sin(math.radians(self.wand_pos.yaw)),4) * self.length_from_wand
-
-                            PointZ = self.wand_pos.z
-                            PointZZ = self.wand_pos.z + round(math.sin(math.radians(self.wand_pos.pitch)),4) * self.length_from_wand
+                            #calculate a point in space a certain distance from the wand
+                            # self.end_of_wand.x = self.wand_pos.x + round(math.cos(math.radians(self.wand_pos.yaw)),4) * self.length_from_wand
+                            #
+                            # self.end_of_wand.y = self.wand_pos.y + round(math.sin(math.radians(self.wand_pos.yaw)),4) * self.length_from_wand
+                            #
+                            # self.end_of_wand.z = self.wand_pos.z + round(math.sin(math.radians(self.wand_pos.pitch)),4) * self.length_from_wand
 
 
 
                             #this adds a little room for the x y and z values.
-                            leeway = .25
-                            # if point xx yy and zz are pointing at the drone, it slows down.
-                            if ((self.valid_cf_pos.x- leeway) <= PointXX < (self.valid_cf_pos.x + leeway)):
-                                if ((self.current_goal_pos.y - leeway) <= PointYY < (self.current_goal_pos.y + leeway)):
-                                    # if ((self.current_goal_pos.z - leeway) <= PointZZ < (self.current_goal_pos.z + leeway)):
-                                    self.circle_resolution = slow
+                            leeway = .5
 
-                            else:
-                                self.circle_resolution = fast
+                            smallest_distance = leeway
+                            increment = 30
+                            for x in range(1,increment):
+                                self.current_wand_range.x = self.wand_pos.x + round(math.cos(math.radians(self.wand_pos.yaw)),4) * (self.length_from_wand/x)
+                                self.current_wand_range.y = self.wand_pos.y + round(math.sin(math.radians(self.wand_pos.yaw)),4) * (self.length_from_wand/x)
+                                self.current_wand_range.z = self.wand_pos.z + round(math.sin(math.radians(self.wand_pos.pitch)), 4) * (self.length_from_wand/x)
+
+                                current_distance = self.valid_cf_pos.distance_to(self.current_wand_range)
+
+                                # logger.info('increment {}'.format(x))
+
+
+                                if current_distance < smallest_distance:
+                                    smallest_distance = current_distance
+                                    self.current_wand_range.x = self.end_of_wand.x
+                                    self.current_wand_range.y = self.end_of_wand.y
+                                    self.current_wand_range.z = self.end_of_wand.z
+
+                                    #logger.info('current_distance {}'.format(current_distance))
+                                    #logger.info('current wand range {}'.format(self.current_wand_range))
+
+
+                            #self.circle_resolution = slow + (fast - slow)*(sphere/leeway)
+                            self.circle_resolution = slow + (fast - slow) * ((smallest_distance / leeway)**2)
+                            logger.info('CIRCLE RESOLUTION {}'.format(self.circle_resolution))
+
+
+
+                            #if point xx yy and zz are pointing at the drone, it slows down.
+                            # if ((self.valid_cf_pos.x- leeway) <= self.end_of_wand.x < (self.valid_cf_pos.x + leeway)):
+                            #     # if ((self.current_goal_pos.y - leeway) <= self.end_of_wand.y < (self.current_goal_pos.y + leeway)):
+                            #         # if ((self.current_goal_pos.z - leeway) <= self.end_of_wand.z < (self.current_goal_pos.z + leeway)):
+                            #     self.circle_resolution = slow
+                            # else:
+                            #     self.circle_resolution = fast
 
                         else:
                             self.counterX += 1
@@ -1181,7 +1208,7 @@ class QualisysTab(Tab, qualisys_tab_class):
                             if self.counterX > 200:
                                 self.circle_resolution = fast
                                 self.counterX = 0
-                                logger.info('wand lost counter reset')
+                                #logger.info('wand lost counter reset')
                                 # logger.info(self.wand_pos)
 
                         if position_hold_timer >= self.position_hold_timelimit:
@@ -1193,22 +1220,29 @@ class QualisysTab(Tab, qualisys_tab_class):
 
                             # Calculate the next position in
                             # the circle to fly to
-                            # original
                             # what does the yaw do?
-                            # self.current_goal_pos = Position(
-                            #     round(
-                            #         math.cos(math.radians(self.circle_angle)),
-                            #         4) * self.circle_radius,
-                            #     round(
-                            #         math.sin(math.radians(self.circle_angle)),
-                            #         4) * self.circle_radius,
-                            #     self.circle_height,
-                            #     yaw=self.circle_angle)
+                            """circle in the XY Plane"""
+                            self.current_goal_pos = Position(
+                                round(
+                                    math.cos(math.radians(self.circle_angle)),
+                                    4) * self.circle_radius,
+                                round(
+                                    math.sin(math.radians(self.circle_angle)),
+                                    4) * self.circle_radius,
+                                self.circle_height,
+                                yaw=self.circle_angle)
 
-                            self.current_goal_pos = Position((round(math.cos(math.radians(self.circle_angle)),4) * self.circle_radius),(round(math.sin(math.radians(self.circle_angle)),4) * self.circle_radius), self.circle_radius + self.circle_height_min + (round(math.cos(math.radians(self.circle_angle)),4) * self.circle_radius))
+                            """circle across XYZ planes"""
+                            # copied c values to z and added height
+                            # self.current_goal_pos = Position((round(math.cos(math.radians(self.circle_angle)),4) * self.circle_radius),(round(math.sin(math.radians(self.circle_angle)),4) * self.circle_radius), self.circle_radius + self.circle_height_min + (round(math.cos(math.radians(self.circle_angle)),4) * self.circle_radius))
 
-                            #self.current_goal_pos = Position((round(math.cos(math.radians(self.circle_angle)), 4) * self.circle_radius),0,self.circle_radius + self.circle_height_min + round(math.cos(math.radians(self.circle_angle)),4) * self.circle_radius)
-                            #
+                            """circle in the YZ plane"""
+                            # copied c values to z and added height
+                            #self.current_goal_pos = Position(0,(round(math.sin(math.radians(self.circle_angle)),4) * self.circle_radius), self.circle_radius + self.circle_height_min + (round(math.cos(math.radians(self.circle_angle)),4) * self.circle_radius))
+
+                            """hover for testing other things"""
+                            #self.current_goal_pos = Position(-.6,.6,1)
+
                         elif position_hold_timer == 0:
 
                             time_of_pos_reach = time.time()
@@ -1217,8 +1251,7 @@ class QualisysTab(Tab, qualisys_tab_class):
                             # Setting it higher than the imit will
                             # break the code.
                             position_hold_timer = 0.0001
-                            logger.info('Setting position {}'.format(
-                                self.current_goal_pos))
+
                         else:
                             position_hold_timer = time.time(
                             ) - time_of_pos_reach
