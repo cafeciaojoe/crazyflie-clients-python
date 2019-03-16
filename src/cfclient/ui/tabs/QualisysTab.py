@@ -212,17 +212,18 @@ class QualisysTab(Tab, qualisys_tab_class):
         self.switch_flight_mode(FlightModeStates.DISCONNECTED)
         self.cf_ready_to_fly = False
         self.path_pos_threshold = 0.2
-        self.circle_pos_threshold = 0.1
+        self.circle_pos_threshold = .1
         self.circle_radius = .5
         self.circle_resolution = 25
-        self.circle_resolution_slow = 4
-        self.circle_resolution_fast = 15
+        self.circle_resolution_slow = 4.5
+        self.circle_resolution_fast = 35
 
         self.counterX = 0
         self.position_hold_timelimit = 0.1
         self.length_from_wand = 2.0
         self.circle_height = 1.2
         self.circle_height_min = .2
+        self.circle_height_max = 1.3
         self.new_path = []
         self.recording = False
         self.land_for_recording = False
@@ -641,10 +642,11 @@ class QualisysTab(Tab, qualisys_tab_class):
                     self.posHoldCircleBox.text())
                 self.circle_radius = float(self.radiusBox.text())
                 self.circle_resolution = float(self.resolutionBox.text())
-                self.circle_pos_threshold = (2 * self.circle_radius * round(
-                    math.sin(math.radians(
-                        (self.circle_resolution / 2))), 4)) * 2
-                logger.info(self.circle_pos_threshold)
+                """moved this calculation to the main loop as circle res is now a variable"""
+                # self.circle_pos_threshold = (2 * self.circle_radius * round(
+                #     math.sin(math.radians(
+                #         (self.circle_resolution / 2))), 4)) * 2
+                logger.info('circle posd threshold {}'.format(self.circle_pos_threshold))
             except ValueError as err:
                 self.status = ("illegal character used in circle"
                                " settings: {}").format(str(err))
@@ -1135,6 +1137,9 @@ class QualisysTab(Tab, qualisys_tab_class):
 
                     fast = self.circle_resolution_fast
                     slow = self.circle_resolution_slow
+                    self.circle_pos_threshold = (2 * self.circle_radius * round(
+                        math.sin(math.radians(
+                            (self.circle_resolution / 2))), 4)) * 2
 
                     # counterX = 0
                     # logger.info('counter started at 0')
@@ -1161,11 +1166,10 @@ class QualisysTab(Tab, qualisys_tab_class):
                             #
                             # self.end_of_wand.z = self.wand_pos.z + round(math.sin(math.radians(self.wand_pos.pitch)),4) * self.length_from_wand
 
-
-
                             #this adds a little room for the x y and z values.
                             leeway = .5
 
+                            #finds the smallest distance between the drone and the line between wand_pos and end_of_wand
                             smallest_distance = leeway
                             increment = 30
                             for x in range(1,increment):
@@ -1187,10 +1191,28 @@ class QualisysTab(Tab, qualisys_tab_class):
                                     #logger.info('current_distance {}'.format(current_distance))
                                     #logger.info('current wand range {}'.format(self.current_wand_range))
 
+                            # aggressivly scaling the circle res (using ^3) so that you can slw it down from far away
+                            self.circle_resolution = slow + (fast - slow) * ((smallest_distance / leeway)**3)
+                            logger.info('CIRCLE RESOLUTION from for loop {}'.format(self.circle_resolution))
 
-                            #self.circle_resolution = slow + (fast - slow)*(sphere/leeway)
-                            self.circle_resolution = slow + (fast - slow) * ((smallest_distance / leeway)**2)
-                            logger.info('CIRCLE RESOLUTION {}'.format(self.circle_resolution))
+                            # if smallest_distance < leeway:
+                            #     start_time_up = time.time()
+                            #     start_time_down = 1
+                            #
+                            # else:
+                            #     start_time_down = time.time()
+                            #     start_time_up = 1
+                            #
+                            # elapsed_time_up = time.time()- start_time_up
+                            # elapsed_time_down = time.time() - start_time_down
+                            #
+                            # if elapsed_time_up > 1:
+                            #     logger.info('elapsed time up {}'.format(elapsed_time_up))
+                            #
+                            # else:
+                            #     logger.info('elapsed time down {}'.format(elapsed_time_down))
+
+
 
 
 
@@ -1218,10 +1240,11 @@ class QualisysTab(Tab, qualisys_tab_class):
                             # increment the angle
                             self.circle_angle = ((self.circle_angle + self.circle_resolution)% 360)
 
+
                             # Calculate the next position in
                             # the circle to fly to
                             # what does the yaw do?
-                            """circle in the XY Plane"""
+                            """circle in the XY Plane (original code)"""
                             # self.current_goal_pos = Position(
                             #     round(
                             #         math.cos(math.radians(self.circle_angle)),
