@@ -213,7 +213,9 @@ class QualisysTab(Tab, qualisys_tab_class):
         self.cf_ready_to_fly = False
         self.path_pos_threshold = 0.2
         self.circle_pos_threshold = .1
-        self.circle_radius = .5
+        self.circle_radius = .1
+        self.circle_radius_min = .1
+        self.circle_radius_max = .7
         self.circle_resolution = 25
         self.circle_resolution_slow = 4.5
         self.circle_resolution_fast = 35
@@ -221,8 +223,8 @@ class QualisysTab(Tab, qualisys_tab_class):
         self.counterX = 0
         self.position_hold_timelimit = 0.1
         self.length_from_wand = 2.0
-        self.circle_height = 1.2
-        self.circle_height_min = .2
+        self.circle_height = .3
+        self.circle_height_min = .3
         self.circle_height_max = 1.3
         self.new_path = []
         self.recording = False
@@ -1137,12 +1139,9 @@ class QualisysTab(Tab, qualisys_tab_class):
 
                     fast = self.circle_resolution_fast
                     slow = self.circle_resolution_slow
-                    self.circle_pos_threshold = (2 * self.circle_radius * round(
-                        math.sin(math.radians(
-                            (self.circle_resolution / 2))), 4)) * 2
-
-                    # counterX = 0
-                    # logger.info('counter started at 0')
+                    proportion = 1
+                    """varying the circle pos threshold means the accutacy is high when the radius is low and vice versa"""
+                    self.circle_pos_threshold = round((self.circle_resolution / 20), 1)
 
                     # Check if the cf has reached the goal position,
                     # if it has set a new goal position
@@ -1195,34 +1194,7 @@ class QualisysTab(Tab, qualisys_tab_class):
                             self.circle_resolution = slow + (fast - slow) * ((smallest_distance / leeway)**3)
                             logger.info('CIRCLE RESOLUTION from for loop {}'.format(self.circle_resolution))
 
-                            # if smallest_distance < leeway:
-                            #     start_time_up = time.time()
-                            #     start_time_down = 1
-                            #
-                            # else:
-                            #     start_time_down = time.time()
-                            #     start_time_up = 1
-                            #
-                            # elapsed_time_up = time.time()- start_time_up
-                            # elapsed_time_down = time.time() - start_time_down
-                            #
-                            # if elapsed_time_up > 1:
-                            #     logger.info('elapsed time up {}'.format(elapsed_time_up))
-                            #
-                            # else:
-                            #     logger.info('elapsed time down {}'.format(elapsed_time_down))
-
-
-
-
-
-                            #if point xx yy and zz are pointing at the drone, it slows down.
-                            # if ((self.valid_cf_pos.x- leeway) <= self.end_of_wand.x < (self.valid_cf_pos.x + leeway)):
-                            #     # if ((self.current_goal_pos.y - leeway) <= self.end_of_wand.y < (self.current_goal_pos.y + leeway)):
-                            #         # if ((self.current_goal_pos.z - leeway) <= self.end_of_wand.z < (self.current_goal_pos.z + leeway)):
-                            #     self.circle_resolution = slow
-                            # else:
-                            #     self.circle_resolution = fast
+                            proportion = self.circle_resolution/fast
 
                         else:
                             self.counterX += 1
@@ -1264,7 +1236,7 @@ class QualisysTab(Tab, qualisys_tab_class):
                             #self.current_goal_pos = Position(0,(round(math.sin(math.radians(self.circle_angle)),4) * self.circle_radius), self.circle_radius + self.circle_height_min + (round(math.cos(math.radians(self.circle_angle)),4) * self.circle_radius))
 
                             """hover for testing other things"""
-                            #self.current_goal_pos = Position(-.6,.6,1)
+                            # self.current_goal_pos = Position(-.6,.6,1)
 
                             """figure eight in XY plane"""
                             self.current_goal_pos = Position((round(math.sin(math.radians(self.circle_angle)),4) * self.circle_radius),((round(math.sin(math.radians(self.circle_angle)),4))*(round(math.cos(math.radians(self.circle_angle)),4)) * self.circle_radius),self.circle_height)
@@ -1281,6 +1253,29 @@ class QualisysTab(Tab, qualisys_tab_class):
                         else:
                             position_hold_timer = time.time(
                             ) - time_of_pos_reach
+
+
+                        if proportion >= 0 and proportion < .5:
+                            self.circle_height += .00015
+                            self.circle_radius += .0001
+                            if self.circle_height >= self.circle_height_max:
+                                self.circle_height = self.circle_height_max
+
+                            if self.circle_radius >= self.circle_radius_max:
+                                self.circle_radius = self.circle_radius_max
+
+                        elif proportion >= .5 and proportion <= 1:
+                            self.circle_height -= .0005
+                            self.circle_radius -= .001
+                            if self.circle_height <= self.circle_height_min:
+                                self.circle_height = self.circle_height_min
+
+                            if self.circle_radius <= self.circle_radius_min:
+                                self.circle_radius = self.circle_radius_min
+                        #
+                        # logger.info('proportion {}'.format(proportion))
+                        # logger.info('circle radius {}'.format(self.circle_radius))
+                        # logger.info('circle_height {}'.format(self.circle_height))
 
 
                 elif self.flight_mode == FlightModeStates.FOLLOW:
