@@ -50,6 +50,8 @@ from cflib.crazyflie.log import LogConfig
 from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
 from cflib.crazyflie.syncLogger import SyncLogger
 
+from cfclient.ui.tabs import LEDTab
+
 import xml.etree.cElementTree as ET
 import threading
 
@@ -188,6 +190,7 @@ class QualisysTab(Tab, qualisys_tab_class):
 
     def __init__(self, tabWidget, helper, *args):
         super(QualisysTab, self).__init__(*args)
+        self.led_tab = LEDTab()
         self.setupUi(self)
 
         self._machine = QStateMachine()
@@ -265,8 +268,11 @@ class QualisysTab(Tab, qualisys_tab_class):
         # camera tracking, if it cant be tracked the position becomes Nan
         self.cf_pos = Position(0, 0, 0)
         self.wand_pos = Position(0, 0, 0)
+        self.wand_pos_R = Position(0, 0, 0)
         self.end_of_wand = Position(0,0,0)
+        self.end_of_wand_R = Position(0, 0, 0)
         self.current_wand_range = Position(0,0,0)
+        self.current_wand_range_R = Position(0, 0, 0)
 
         # The regular cf_pos can a times due to lost tracing become Nan,
         # this the latest known valid cf position
@@ -322,6 +328,7 @@ class QualisysTab(Tab, qualisys_tab_class):
         self.quadBox.currentIndexChanged[str].connect(self.quad_changed)
         self.stickBox.currentIndexChanged[str].connect(self.stick_changed)
         self.stickName = 'qstick'
+        self.stickName_R = 'qstick_R'
         self.quadName = 'crazyflie'
 
         # Populate UI elements
@@ -924,6 +931,19 @@ class QualisysTab(Tab, qualisys_tab_class):
         except ValueError as err:
             self.qtmStatus = ' : connected : No 6DoF body found'
 
+        try:
+            temp_wand_pos = bodies[self.qtm_6DoF_labels.index(self.stickName_R)]
+            self.wand_pos_R = Position(
+                temp_wand_pos[0][0] / 1000,
+                temp_wand_pos[0][1] / 1000,
+                temp_wand_pos[0][2] / 1000,
+                roll=temp_wand_pos[1][2],
+                pitch=temp_wand_pos[1][1],
+                yaw=temp_wand_pos[1][0])
+
+        except ValueError as err:
+            self.qtmStatus = ' : connected : No 6DoF body found'
+
         if self.scf is not None and self.cf_pos.is_valid():
             # If a scf (syncronous Crazyflie) exists and the position is valid
             # Feed the current position of the cf back to the cf to
@@ -981,6 +1001,7 @@ class QualisysTab(Tab, qualisys_tab_class):
             yaw=self.circle_angle)
 
         self.last_valid_wand_pos = Position(0, 0, 1)
+        self.last_valid_wand_pos_R = Position(0, 0, 1)
 
         logger.info('Setting position from light_mode_circle_entered definition {}'.format(
             self.current_goal_pos))
@@ -1148,8 +1169,9 @@ class QualisysTab(Tab, qualisys_tab_class):
                     if self.valid_cf_pos.distance_to(
                             self.current_goal_pos) < self.circle_pos_threshold:
 
-                        if self.wand_pos.is_valid():
+                        if self.wand_pos.is_valid() and self.wand_pos_R.is_valid:
                             self.last_valid_wand_pos = self.wand_pos
+                            self.last_valid_wand_pos_R = self.wand_pos_R
                             # logger.info(self.wand_pos)
 
                             # Fit the angle of the wand in the interval 0-4
@@ -1176,7 +1198,12 @@ class QualisysTab(Tab, qualisys_tab_class):
                                 self.current_wand_range.y = self.wand_pos.y + round(math.sin(math.radians(self.wand_pos.yaw)),4) * (self.length_from_wand/x)
                                 self.current_wand_range.z = self.wand_pos.z + round(math.sin(math.radians(self.wand_pos.pitch)), 4) * (self.length_from_wand/x)
 
-                                current_distance = self.valid_cf_pos.distance_to(self.current_wand_range)
+                                self.current_wand_range_R.x = self.wand_pos_R.x + round(math.cos(math.radians(self.wand_pos_R.yaw)),4) * (self.length_from_wand/x)
+                                self.current_wand_range_R.y = self.wand_pos_R.y + round(math.sin(math.radians(self.wand_pos_R.yaw)),4) * (self.length_from_wand/x)
+                                self.current_wand_range_R.z = self.wand_pos_R.z + round(math.sin(math.radians(self.wand_pos_R.pitch)), 4) * (self.length_from_wand/x)
+
+                                current_distance = (self.valid_cf_pos.distance_to(self.current_wand_range) + self.valid_cf_pos.distance_to(self.current_wand_range_R))/5
+                                logger.info(current_distance)
 
                                 # logger.info('increment {}'.format(x))
 
@@ -1187,11 +1214,15 @@ class QualisysTab(Tab, qualisys_tab_class):
                                     self.current_wand_range.y = self.end_of_wand.y
                                     self.current_wand_range.z = self.end_of_wand.z
 
+                                    self.current_wand_range_R.x = self.end_of_wand_R.x
+                                    self.current_wand_range_R.y = self.end_of_wand_R.y
+                                    self.current_wand_range_R.z = self.end_of_wand_R.z
+
                                     #logger.info('current_distance {}'.format(current_distance))
                                     #logger.info('current wand range {}'.format(self.current_wand_range))
 
                             # aggressivly scaling the circle res (using ^3) so that you can slw it down from far away
-                            self.circle_resolution = slow + (fast - slow) * ((smallest_distance / leeway)**3)
+                            self.circle_resolution = slow + (fast - slow) * ((smallest_distance / leeway)**4)
                             logger.info('CIRCLE RESOLUTION from for loop {}'.format(self.circle_resolution))
 
                             proportion = self.circle_resolution/fast
@@ -1236,7 +1267,7 @@ class QualisysTab(Tab, qualisys_tab_class):
                             #self.current_goal_pos = Position(0,(round(math.sin(math.radians(self.circle_angle)),4) * self.circle_radius), self.circle_radius + self.circle_height_min + (round(math.cos(math.radians(self.circle_angle)),4) * self.circle_radius))
 
                             """hover for testing other things"""
-                            # self.current_goal_pos = Position(-.6,.6,1)
+                            #self.current_goal_pos = Position(-.6,.6,1)
 
                             """figure eight in XY plane"""
                             self.current_goal_pos = Position((round(math.sin(math.radians(self.circle_angle)),4) * self.circle_radius),((round(math.sin(math.radians(self.circle_angle)),4))*(round(math.cos(math.radians(self.circle_angle)),4)) * self.circle_radius),self.circle_height)
@@ -1256,8 +1287,8 @@ class QualisysTab(Tab, qualisys_tab_class):
 
 
                         if proportion >= 0 and proportion < .5:
-                            self.circle_height += .00015
-                            self.circle_radius += .0001
+                            self.circle_height += .00045
+                            self.circle_radius += .0003
                             if self.circle_height >= self.circle_height_max:
                                 self.circle_height = self.circle_height_max
 
@@ -1346,6 +1377,8 @@ class QualisysTab(Tab, qualisys_tab_class):
 
                 elif self.flight_mode == FlightModeStates.HOVERING:
                     self.send_setpoint(self.scf, self.current_goal_pos)
+                    print("setting LED intensity to 0.5")
+
 
                 elif self.flight_mode == FlightModeStates.RECORD:
 
@@ -1551,6 +1584,15 @@ class QualisysTab(Tab, qualisys_tab_class):
         # arguments in the order (Y, X, Yaw, Z)
         scf_.cf.commander.send_setpoint(pos.y, pos.x, 0, int(pos.z * 1000))
         pass
+
+    def set_led_intensity(self, value):
+        self._intensity = value
+        self._write_led_output()
+
+    def set_led_color(self, rgb, nbr):
+        red, green, blue = rgb
+        self._mem.leds[nbr].set(r=red, g=green, b=blue)
+        self._write_led_output()
 
 
 class Position:

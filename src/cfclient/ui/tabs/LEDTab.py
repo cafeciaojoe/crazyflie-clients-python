@@ -167,3 +167,6 @@ class LEDTab(Tab, led_tab_class):
             self._intensity_slider.setEnabled(False)
             self._intensity_spin.setEnabled(False)
             self._intensity_slider.setValue(100)
+
+
+
