@@ -50,7 +50,7 @@ from cflib.crazyflie.log import LogConfig
 from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
 from cflib.crazyflie.syncLogger import SyncLogger
 
-from cfclient.ui.tabs import LEDTab
+from cflib.crazyflie.mem import MemoryElement
 
 import xml.etree.cElementTree as ET
 import threading
@@ -190,7 +190,6 @@ class QualisysTab(Tab, qualisys_tab_class):
 
     def __init__(self, tabWidget, helper, *args):
         super(QualisysTab, self).__init__(*args)
-        self.led_tab = LEDTab()
         self.setupUi(self)
 
         self._machine = QStateMachine()
@@ -216,14 +215,13 @@ class QualisysTab(Tab, qualisys_tab_class):
         self.cf_ready_to_fly = False
         self.path_pos_threshold = 0.2
         self.circle_pos_threshold = .1
-        self.circle_radius = .1
-        self.circle_radius_min = .1
-        self.circle_radius_max = .7
+        self.circle_radius = .2
+        self.circle_radius_min = .2
+        self.circle_radius_max = .8
         self.circle_resolution = 25
-        self.circle_resolution_slow = 4.5
+        self.circle_resolution_slow = 4
         self.circle_resolution_fast = 35
 
-        self.counterX = 0
         self.position_hold_timelimit = 0.1
         self.length_from_wand = 2.0
         self.circle_height = .3
@@ -268,7 +266,7 @@ class QualisysTab(Tab, qualisys_tab_class):
         # camera tracking, if it cant be tracked the position becomes Nan
         self.cf_pos = Position(0, 0, 0)
         self.wand_pos = Position(0, 0, 0)
-        self.wand_pos_R = Position(0, 0, 0)
+        self.wand_pos_R = Position(1, 1, 1)
         self.end_of_wand = Position(0,0,0)
         self.end_of_wand_R = Position(0, 0, 0)
         self.current_wand_range = Position(0,0,0)
@@ -328,7 +326,7 @@ class QualisysTab(Tab, qualisys_tab_class):
         self.quadBox.currentIndexChanged[str].connect(self.quad_changed)
         self.stickBox.currentIndexChanged[str].connect(self.stick_changed)
         self.stickName = 'qstick'
-        self.stickName_R = 'qstick_R'
+        self.stickNameR = 'qstickr'
         self.quadName = 'crazyflie'
 
         # Populate UI elements
@@ -347,6 +345,8 @@ class QualisysTab(Tab, qualisys_tab_class):
 
         self._ui_update_timer = QTimer(self)
         self._ui_update_timer.timeout.connect(self._update_ui)
+
+        self._intensity = 100
 
     def _setup_states(self):
         parent_state = QState()
@@ -655,7 +655,6 @@ class QualisysTab(Tab, qualisys_tab_class):
                 # self.circle_pos_threshold = (2 * self.circle_radius * round(
                 #     math.sin(math.radians(
                 #         (self.circle_resolution / 2))), 4)) * 2
-                logger.info('circle posd threshold {}'.format(self.circle_pos_threshold))
             except ValueError as err:
                 self.status = ("illegal character used in circle"
                                " settings: {}").format(str(err))
@@ -802,6 +801,7 @@ class QualisysTab(Tab, qualisys_tab_class):
         quadName = self.quadName
         stickName = self.stickName
 
+
         self.quadBox.clear()
         self.stickBox.clear()
         for label in self.qtm_6DoF_labels:
@@ -929,17 +929,18 @@ class QualisysTab(Tab, qualisys_tab_class):
                 yaw=temp_wand_pos[1][0])
 
         except ValueError as err:
-            self.qtmStatus = ' : connected : No 6DoF body found'
+            self.qtmStatus = ' : connected : No 6DoF body found from stick name try'
 
         try:
-            temp_wand_pos = bodies[self.qtm_6DoF_labels.index(self.stickName_R)]
+            temp_wand_pos_R = bodies[self.qtm_6DoF_labels.index(self.stickNameR)]
             self.wand_pos_R = Position(
-                temp_wand_pos[0][0] / 1000,
-                temp_wand_pos[0][1] / 1000,
-                temp_wand_pos[0][2] / 1000,
-                roll=temp_wand_pos[1][2],
-                pitch=temp_wand_pos[1][1],
-                yaw=temp_wand_pos[1][0])
+                temp_wand_pos_R[0][0] / 1000,
+                temp_wand_pos_R[0][1] / 1000,
+                temp_wand_pos_R[0][2] / 1000,
+                roll=temp_wand_pos_R[1][2],
+                pitch=temp_wand_pos_R[1][1],
+                yaw=temp_wand_pos_R[1][0])
+
 
         except ValueError as err:
             self.qtmStatus = ' : connected : No 6DoF body found'
@@ -1000,9 +1001,6 @@ class QualisysTab(Tab, qualisys_tab_class):
             self.circle_height,
             yaw=self.circle_angle)
 
-        self.last_valid_wand_pos = Position(0, 0, 1)
-        self.last_valid_wand_pos_R = Position(0, 0, 1)
-
         logger.info('Setting position from light_mode_circle_entered definition {}'.format(
             self.current_goal_pos))
         self._event.set()
@@ -1051,7 +1049,17 @@ class QualisysTab(Tab, qualisys_tab_class):
             # The threshold for how many frames without tracking
             # is allowed before the cf's motors are stopped
             lost_tracking_threshold = 100
-            frames_without_tracking = 0
+
+            # the threshold for how many frames without tracking
+            # is allowed before the hand pads before the cf goes back to
+            # a low res circle (ie fast)
+            frames_without_tracking_cf = 0
+            frames_without_tracking_wands = 0
+
+            fast = self.circle_resolution_fast
+            slow = self.circle_resolution_slow
+            proportion = 1
+
             position_hold_timer = 0
             self.circle_angle = 0.0
 
@@ -1062,12 +1070,12 @@ class QualisysTab(Tab, qualisys_tab_class):
                 # Check that the position is valid and store it
                 if self.cf_pos.is_valid():
                     self.valid_cf_pos = self.cf_pos
-                    frames_without_tracking = 0
+                    frames_without_tracking_cf = 0
                 else:
                     # if it isn't, count number of frames
-                    frames_without_tracking += 1
+                    frames_without_tracking_cf += 1
 
-                    if frames_without_tracking > lost_tracking_threshold:
+                    if frames_without_tracking_cf > lost_tracking_threshold:
                         self.switch_flight_mode(FlightModeStates.GROUNDED)
                         self.status = "Tracking lost, turning off motors"
                         logger.info(self.status)
@@ -1158,40 +1166,26 @@ class QualisysTab(Tab, qualisys_tab_class):
                 elif self.flight_mode == FlightModeStates.CIRCLE:
                     self.send_setpoint(self.scf, self.current_goal_pos)
 
-                    fast = self.circle_resolution_fast
-                    slow = self.circle_resolution_slow
-                    proportion = 1
                     """varying the circle pos threshold means the accutacy is high when the radius is low and vice versa"""
-                    self.circle_pos_threshold = round((self.circle_resolution / 20), 1)
+                    self.circle_pos_threshold = round((self.circle_resolution / 30), 1)
 
                     # Check if the cf has reached the goal position,
                     # if it has set a new goal position
                     if self.valid_cf_pos.distance_to(
                             self.current_goal_pos) < self.circle_pos_threshold:
 
-                        if self.wand_pos.is_valid() and self.wand_pos_R.is_valid:
-                            self.last_valid_wand_pos = self.wand_pos
-                            self.last_valid_wand_pos_R = self.wand_pos_R
-                            # logger.info(self.wand_pos)
+                        if self.wand_pos.is_valid() and self.wand_pos_R.is_valid():
 
                             # Fit the angle of the wand in the interval 0-4
                             self.length_from_wand = 2
-                            # self.length_from_wand = (2 * (
-                            #     (self.wand_pos.roll + 90) / 180) - 1) + 2
-
-                            # """
-                            #calculate a point in space a certain distance from the wand
-                            # self.end_of_wand.x = self.wand_pos.x + round(math.cos(math.radians(self.wand_pos.yaw)),4) * self.length_from_wand
-                            #
-                            # self.end_of_wand.y = self.wand_pos.y + round(math.sin(math.radians(self.wand_pos.yaw)),4) * self.length_from_wand
-                            #
-                            # self.end_of_wand.z = self.wand_pos.z + round(math.sin(math.radians(self.wand_pos.pitch)),4) * self.length_from_wand
 
                             #this adds a little room for the x y and z values.
                             leeway = .5
 
                             #finds the smallest distance between the drone and the line between wand_pos and end_of_wand
                             smallest_distance = leeway
+                            smallest_distance_R = leeway
+
                             increment = 30
                             for x in range(1,increment):
                                 self.current_wand_range.x = self.wand_pos.x + round(math.cos(math.radians(self.wand_pos.yaw)),4) * (self.length_from_wand/x)
@@ -1202,39 +1196,34 @@ class QualisysTab(Tab, qualisys_tab_class):
                                 self.current_wand_range_R.y = self.wand_pos_R.y + round(math.sin(math.radians(self.wand_pos_R.yaw)),4) * (self.length_from_wand/x)
                                 self.current_wand_range_R.z = self.wand_pos_R.z + round(math.sin(math.radians(self.wand_pos_R.pitch)), 4) * (self.length_from_wand/x)
 
-                                current_distance = (self.valid_cf_pos.distance_to(self.current_wand_range) + self.valid_cf_pos.distance_to(self.current_wand_range_R))/5
-                                logger.info(current_distance)
-
-                                # logger.info('increment {}'.format(x))
-
+                                current_distance = self.valid_cf_pos.distance_to(self.current_wand_range)
+                                current_distance_R = self.valid_cf_pos.distance_to(self.current_wand_range_R)
 
                                 if current_distance < smallest_distance:
                                     smallest_distance = current_distance
-                                    self.current_wand_range.x = self.end_of_wand.x
-                                    self.current_wand_range.y = self.end_of_wand.y
-                                    self.current_wand_range.z = self.end_of_wand.z
 
-                                    self.current_wand_range_R.x = self.end_of_wand_R.x
-                                    self.current_wand_range_R.y = self.end_of_wand_R.y
-                                    self.current_wand_range_R.z = self.end_of_wand_R.z
+                                    # logger.info('smallest distance L {}'.format(smallest_distance))
 
-                                    #logger.info('current_distance {}'.format(current_distance))
-                                    #logger.info('current wand range {}'.format(self.current_wand_range))
+                                if current_distance_R < smallest_distance_R:
+                                    smallest_distance_R = current_distance_R
 
-                            # aggressivly scaling the circle res (using ^3) so that you can slw it down from far away
-                            self.circle_resolution = slow + (fast - slow) * ((smallest_distance / leeway)**4)
-                            logger.info('CIRCLE RESOLUTION from for loop {}'.format(self.circle_resolution))
+                                    # logger.info('smallest distance R {}'.format(smallest_distance_R))
+
+                            # aggressivly scaling the circle res (using ^x) so that you can slw it down from far away
+                            self.circle_resolution = slow + (fast - slow) * ((((smallest_distance + smallest_distance_R)/2) / leeway)**4)
+                            logger.info('CIRCLE RESOLUTION loop {}'.format(self.circle_resolution))
 
                             proportion = self.circle_resolution/fast
 
                         else:
-                            self.counterX += 1
-                            # logger.info(self.counterX)
-                            if self.counterX > 200:
+                            frames_without_tracking_wands += 1
+
+                            if frames_without_tracking_wands > 200:
                                 self.circle_resolution = fast
-                                self.counterX = 0
-                                #logger.info('wand lost counter reset')
-                                # logger.info(self.wand_pos)
+                                frames_without_tracking_wands = 0
+                                # logger.info('wand lost counter reset')
+
+
 
                         if position_hold_timer >= self.position_hold_timelimit:
 
@@ -1287,8 +1276,9 @@ class QualisysTab(Tab, qualisys_tab_class):
 
 
                         if proportion >= 0 and proportion < .5:
-                            self.circle_height += .00045
-                            self.circle_radius += .0003
+                            self.circle_height += self.circle_height_max/10000
+                            self.circle_radius += self.circle_radius_max/10000
+
                             if self.circle_height >= self.circle_height_max:
                                 self.circle_height = self.circle_height_max
 
@@ -1296,18 +1286,14 @@ class QualisysTab(Tab, qualisys_tab_class):
                                 self.circle_radius = self.circle_radius_max
 
                         elif proportion >= .5 and proportion <= 1:
-                            self.circle_height -= .0005
-                            self.circle_radius -= .001
+                            self.circle_height -= self.circle_radius_max/1000
+                            self.circle_radius -= self.circle_radius_max/1000
+
                             if self.circle_height <= self.circle_height_min:
                                 self.circle_height = self.circle_height_min
 
                             if self.circle_radius <= self.circle_radius_min:
                                 self.circle_radius = self.circle_radius_min
-                        #
-                        # logger.info('proportion {}'.format(proportion))
-                        # logger.info('circle radius {}'.format(self.circle_radius))
-                        # logger.info('circle_height {}'.format(self.circle_height))
-
 
                 elif self.flight_mode == FlightModeStates.FOLLOW:
 
@@ -1377,7 +1363,6 @@ class QualisysTab(Tab, qualisys_tab_class):
 
                 elif self.flight_mode == FlightModeStates.HOVERING:
                     self.send_setpoint(self.scf, self.current_goal_pos)
-                    print("setting LED intensity to 0.5")
 
 
                 elif self.flight_mode == FlightModeStates.RECORD:
@@ -1434,6 +1419,10 @@ class QualisysTab(Tab, qualisys_tab_class):
                         self.switch_flight_mode(FlightModeStates.PATH)
 
                 elif self.flight_mode == FlightModeStates.GROUNDED:
+                    # value = 50
+                    # self.set_led_color((255, 0, 255), 5)
+                    # print("setting LED intensity to ", value)
+                    # self.set_led_intensity(value)
                     pass  # If gounded, the control is switched back to gamepad
 
                 time.sleep(0.001)
@@ -1454,6 +1443,12 @@ class QualisysTab(Tab, qualisys_tab_class):
 
     def _connected(self, link_uri):
         """Callback when the Crazyflie has been connected"""
+
+        mems = self._helper.cf.mem.get_mems(MemoryElement.TYPE_DRIVER_LED)
+        print("Memory len ", len(mems))
+        if len(mems) > 0:
+            self._mem = mems[0]
+            logger.info(self._mem)
 
         if not self.flying_enabled:
             self.flying_enabled = True
@@ -1585,14 +1580,27 @@ class QualisysTab(Tab, qualisys_tab_class):
         scf_.cf.commander.send_setpoint(pos.y, pos.x, 0, int(pos.z * 1000))
         pass
 
+    def set_led_color(self, rgb, nbr):
+        red, green, blue = rgb
+        if self._mem:
+            self._mem.leds[nbr].set(r=red, g=green, b=blue)
+            self._write_led_output()
+
     def set_led_intensity(self, value):
         self._intensity = value
         self._write_led_output()
 
-    def set_led_color(self, rgb, nbr):
-        red, green, blue = rgb
-        self._mem.leds[nbr].set(r=red, g=green, b=blue)
-        self._write_led_output()
+    def _write_led_output(self):
+        if self._mem:
+            print("writing LED output")
+            for led in self._mem.leds:
+                led.intensity = self._intensity
+            self._mem.write_data(self._led_write_done)
+        else:
+            logger.info("No LED-ring memory found!")
+
+    def _led_write_done(self, mem, addr):
+        logger.info("LED write done callback")
 
 
 class Position:

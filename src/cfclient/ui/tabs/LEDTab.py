@@ -138,6 +138,7 @@ class LEDTab(Tab, led_tab_class):
         if self._mem:
             for led in self._mem.leds:
                 led.intensity = self._intensity
+                print(led.intensity)
             self._mem.write_data(self._led_write_done)
         else:
             logger.info("No LED-ring memory found!")
