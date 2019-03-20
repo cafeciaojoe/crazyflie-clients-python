@@ -215,12 +215,12 @@ class QualisysTab(Tab, qualisys_tab_class):
         self.cf_ready_to_fly = False
         self.path_pos_threshold = 0.2
         self.circle_pos_threshold = .1
-        self.circle_radius = .2
-        self.circle_radius_min = .2
+        self.circle_radius = .1
+        self.circle_radius_min = .1
         self.circle_radius_max = .8
-        self.circle_resolution = 25
+        self.circle_resolution = 10
         self.circle_resolution_slow = 4
-        self.circle_resolution_fast = 35
+        self.circle_resolution_fast = 10
 
         self.position_hold_timelimit = 0.1
         self.length_from_wand = 2.0
@@ -267,8 +267,6 @@ class QualisysTab(Tab, qualisys_tab_class):
         self.cf_pos = Position(0, 0, 0)
         self.wand_pos = Position(0, 0, 0)
         self.wand_pos_R = Position(1, 1, 1)
-        self.end_of_wand = Position(0,0,0)
-        self.end_of_wand_R = Position(0, 0, 0)
         self.current_wand_range = Position(0,0,0)
         self.current_wand_range_R = Position(0, 0, 0)
 
@@ -346,7 +344,8 @@ class QualisysTab(Tab, qualisys_tab_class):
         self._ui_update_timer = QTimer(self)
         self._ui_update_timer.timeout.connect(self._update_ui)
 
-        self._intensity = 100
+        # for set Led intensity
+        self._intensity = 0
 
     def _setup_states(self):
         parent_state = QState()
@@ -1000,6 +999,9 @@ class QualisysTab(Tab, qualisys_tab_class):
             * self.circle_radius,
             self.circle_height,
             yaw=self.circle_angle)
+        self.set_led_intensity(10)
+        for x in range(12):
+            self.set_led_color((255, 255, 255), x)
 
         logger.info('Setting position from light_mode_circle_entered definition {}'.format(
             self.current_goal_pos))
@@ -1056,9 +1058,10 @@ class QualisysTab(Tab, qualisys_tab_class):
             frames_without_tracking_cf = 0
             frames_without_tracking_wands = 0
 
-            fast = self.circle_resolution_fast
-            slow = self.circle_resolution_slow
-            proportion = 1
+            led_intensity_max = 75
+            led_intensity_min = 10
+
+            circle_resolution_proportion = 1
 
             position_hold_timer = 0
             self.circle_angle = 0.0
@@ -1174,13 +1177,15 @@ class QualisysTab(Tab, qualisys_tab_class):
                     if self.valid_cf_pos.distance_to(
                             self.current_goal_pos) < self.circle_pos_threshold:
 
+                        """finds the smallest disance from a 2m imaginary line emitting from the wands,
+                         used to determine how accurately the hands are pointed at the wands"""
                         if self.wand_pos.is_valid() and self.wand_pos_R.is_valid():
 
                             # Fit the angle of the wand in the interval 0-4
                             self.length_from_wand = 2
 
                             #this adds a little room for the x y and z values.
-                            leeway = .5
+                            leeway = .3
 
                             #finds the smallest distance between the drone and the line between wand_pos and end_of_wand
                             smallest_distance = leeway
@@ -1210,16 +1215,26 @@ class QualisysTab(Tab, qualisys_tab_class):
                                     # logger.info('smallest distance R {}'.format(smallest_distance_R))
 
                             # aggressivly scaling the circle res (using ^x) so that you can slw it down from far away
-                            self.circle_resolution = slow + (fast - slow) * ((((smallest_distance + smallest_distance_R)/2) / leeway)**4)
-                            logger.info('CIRCLE RESOLUTION loop {}'.format(self.circle_resolution))
+                            self.circle_resolution = self.circle_resolution_slow + (self.circle_resolution_fast - self.circle_resolution_slow) * ((((smallest_distance + smallest_distance_R)/2) / leeway)**5)
+                            # logger.info('CIRCLE RESOLUTION loop {}'.format(self.circle_resolution))
 
-                            proportion = self.circle_resolution/fast
+                            circle_resolution_proportion = (self.circle_resolution-self.circle_resolution_slow)/self.circle_resolution_fast
+                            # logger.info('circle_resolution_proportion {}'.format(circle_resolution_proportion))
 
+                            """set the led intensity as a function of the smallest distance found"""
+                            led_intensity = led_intensity_max - round((led_intensity_max-led_intensity_min)*((((smallest_distance + smallest_distance_R)/2) / leeway)),0)
+                            # print("setting LED intensity to ", led_intensity)
+                            self.set_led_intensity(led_intensity)
+
+                            # """set the led intensity as a function of the smallest distance found (not really that great atm)"""
+                            # colour_value = round((((255 - 255*(smallest_distance + smallest_distance_R)/2)/leeway)**3),0)
+                            # for x in range(12):
+                            #     self.set_led_color((255, colour_value, 255), x)
                         else:
                             frames_without_tracking_wands += 1
-
                             if frames_without_tracking_wands > 200:
-                                self.circle_resolution = fast
+                                self.circle_resolution = self.circle_resolution_fast
+                                self.set_led_intensity(led_intensity_min)
                                 frames_without_tracking_wands = 0
                                 # logger.info('wand lost counter reset')
 
@@ -1256,10 +1271,24 @@ class QualisysTab(Tab, qualisys_tab_class):
                             #self.current_goal_pos = Position(0,(round(math.sin(math.radians(self.circle_angle)),4) * self.circle_radius), self.circle_radius + self.circle_height_min + (round(math.cos(math.radians(self.circle_angle)),4) * self.circle_radius))
 
                             """hover for testing other things"""
-                            #self.current_goal_pos = Position(-.6,.6,1)
+                            # self.current_goal_pos = Position(-.6,.6,1)
 
                             """figure eight in XY plane"""
                             self.current_goal_pos = Position((round(math.sin(math.radians(self.circle_angle)),4) * self.circle_radius),((round(math.sin(math.radians(self.circle_angle)),4))*(round(math.cos(math.radians(self.circle_angle)),4)) * self.circle_radius),self.circle_height)
+
+
+                            """Creating a aggresively scales circle heigh proportion """
+                            # circle_height_proportion = round(((self.circle_height/self.circle_height_max)**2)*100,0)
+
+                            """set the led brightness as a function of the height (remember to turn off the led intensity function in the wand range loop"""
+                            # print("setting LED intensity to ", value)
+                            # self.set_led_intensity(circle_height_proportion)
+
+                            """set the led colour as a function of the circle height (remember to turn off the led colour function in the wand range loop)"""
+                            colour_value = round((255 - 255*(((self.circle_radius-self.circle_radius_min)/(self.circle_radius_max-self.circle_radius_min)))),0)
+                            print("led colour ", colour_value)
+                            for x in range(12):
+                                self.set_led_color((255, colour_value, 255), x)
 
                         elif position_hold_timer == 0:
 
@@ -1274,10 +1303,9 @@ class QualisysTab(Tab, qualisys_tab_class):
                             position_hold_timer = time.time(
                             ) - time_of_pos_reach
 
-
-                        if proportion >= 0 and proportion < .5:
+                        if circle_resolution_proportion >= 0 and circle_resolution_proportion < .5:
                             self.circle_height += self.circle_height_max/10000
-                            self.circle_radius += self.circle_radius_max/10000
+                            self.circle_radius += self.circle_radius_max/25000
 
                             if self.circle_height >= self.circle_height_max:
                                 self.circle_height = self.circle_height_max
@@ -1285,13 +1313,12 @@ class QualisysTab(Tab, qualisys_tab_class):
                             if self.circle_radius >= self.circle_radius_max:
                                 self.circle_radius = self.circle_radius_max
 
-                        elif proportion >= .5 and proportion <= 1:
+                        elif circle_resolution_proportion >= .5 and circle_resolution_proportion <= 1:
                             self.circle_height -= self.circle_radius_max/1000
-                            self.circle_radius -= self.circle_radius_max/1000
+                            self.circle_radius -= self.circle_radius_max/500
 
                             if self.circle_height <= self.circle_height_min:
                                 self.circle_height = self.circle_height_min
-
                             if self.circle_radius <= self.circle_radius_min:
                                 self.circle_radius = self.circle_radius_min
 
@@ -1592,7 +1619,6 @@ class QualisysTab(Tab, qualisys_tab_class):
 
     def _write_led_output(self):
         if self._mem:
-            print("writing LED output")
             for led in self._mem.leds:
                 led.intensity = self._intensity
             self._mem.write_data(self._led_write_done)
@@ -1600,7 +1626,7 @@ class QualisysTab(Tab, qualisys_tab_class):
             logger.info("No LED-ring memory found!")
 
     def _led_write_done(self, mem, addr):
-        logger.info("LED write done callback")
+        logger.debug("LED write done callback")
 
 
 class Position:

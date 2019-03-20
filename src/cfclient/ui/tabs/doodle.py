@@ -42,5 +42,15 @@
 #     self.circle_resolution = slow
 # else:
 #     self.circle_resolution = fast
-for x in range(1, 30, 1):
-    print(x)
+
+
+"""Creating a aggresively scales circle heigh proportion """
+circle_height_proportion = round(((self.circle_height / self.circle_height_max) ** 2) * 100, 0)
+
+"""set the led brightness as a function of the height"""
+# print("setting LED intensity to ", value)
+# self.set_led_intensity(circle_height_proportion)
+
+"""set the led colour as a function of the height"""
+for x in range(12):
+    self.set_led_color((255, (255 - 255 * (circle_height_proportion)), 255), x)
