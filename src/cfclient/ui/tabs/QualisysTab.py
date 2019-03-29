@@ -224,8 +224,8 @@ class QualisysTab(Tab, qualisys_tab_class):
 
         self.position_hold_timelimit = 0.1
         self.length_from_wand = 2.0
-        self.circle_height = .3
-        self.circle_height_min = .3
+        self.circle_height = .5
+        self.circle_height_min = .5
         self.circle_height_max = 1.3
         self.new_path = []
         self.recording = False
@@ -269,6 +269,16 @@ class QualisysTab(Tab, qualisys_tab_class):
         self.wand_pos_R = Position(1, 1, 1)
         self.current_wand_range = Position(0,0,0)
         self.current_wand_range_R = Position(0, 0, 0)
+
+        self.valid_wand_pos = Position(0, 0, 1)
+        self.valid_wand_pos_R = Position(0, 0, 1)
+        self.end_of_wand = Position(0,0,0)
+        self.end_of_wand_R = Position(0,0,0)
+
+        self.chest_pos = Position(0,0,1.5)
+        self.valid_chest_pos = Position(0, 0, 1.5)
+
+        self.mid_pos = Position(0,0,0)
 
         # The regular cf_pos can a times due to lost tracing become Nan,
         # this the latest known valid cf position
@@ -326,6 +336,7 @@ class QualisysTab(Tab, qualisys_tab_class):
         self.stickName = 'qstick'
         self.stickNameR = 'qstickr'
         self.quadName = 'crazyflie'
+        self.chestName = 'chest'
 
         # Populate UI elements
         self.posHoldPathBox.setText(str(self.position_hold_timelimit))
@@ -928,7 +939,7 @@ class QualisysTab(Tab, qualisys_tab_class):
                 yaw=temp_wand_pos[1][0])
 
         except ValueError as err:
-            self.qtmStatus = ' : connected : No 6DoF body found from stick name try'
+            self.qtmStatus = ' : connected : No 6DoF body found'
 
         try:
             temp_wand_pos_R = bodies[self.qtm_6DoF_labels.index(self.stickNameR)]
@@ -939,6 +950,20 @@ class QualisysTab(Tab, qualisys_tab_class):
                 roll=temp_wand_pos_R[1][2],
                 pitch=temp_wand_pos_R[1][1],
                 yaw=temp_wand_pos_R[1][0])
+
+
+        except ValueError as err:
+            self.qtmStatus = ' : connected : No 6DoF body found'
+
+        try:
+            temp_chest_pos = bodies[self.qtm_6DoF_labels.index(self.chestName)]
+            self.chest_pos = Position(
+                temp_chest_pos[0][0] / 1000,
+                temp_chest_pos[0][1] / 1000,
+                temp_chest_pos[0][2] / 1000,
+                roll=temp_chest_pos[1][2],
+                pitch=temp_chest_pos[1][1],
+                yaw=temp_chest_pos[1][0])
 
 
         except ValueError as err:
@@ -1008,7 +1033,7 @@ class QualisysTab(Tab, qualisys_tab_class):
         self._event.set()
 
     def _flight_mode_follow_entered(self):
-        self.last_valid_wand_pos = Position(0, 0, 1)
+        self.current_goal_pos = self.valid_cf_pos
         self._event.set()
 
     def _flight_mode_record_entered(self):
@@ -1324,56 +1349,65 @@ class QualisysTab(Tab, qualisys_tab_class):
 
                 elif self.flight_mode == FlightModeStates.FOLLOW:
 
+                    for x in range(12):
+                        self.set_led_color((255, 255, 255), x)
+
                     if self.wand_pos.is_valid():
-                        self.last_valid_wand_pos = self.wand_pos
+                        self.valid_wand_pos = self.wand_pos
 
-                        # Fit the angle of the wand in the interval 0-4
-                        self.length_from_wand = .5
-                        # self.length_from_wand = (2 * (
-                        #     (self.wand_pos.roll + 90) / 180) - 1) + 2
+                    if self.wand_pos_R.is_valid():
+                        self.valid_wand_pos_R = self.wand_pos_R
 
-                       # """
-                        newx = self.wand_pos.x + round( math.cos(math.radians(self.wand_pos.yaw)), 4) * self.length_from_wand
-                        newy = self.wand_pos.y + round(math.sin(math.radians(self.wand_pos.yaw)), 4) * self.length_from_wand
-                        newz = self.wand_pos.z + round(math.sin(math.radians(self.wand_pos.pitch)), 4) * self.length_from_wand
-                        if(newx < -1):
-                            newx = -1
-                        if(newx > 1):
-                            newx = 1
-                        if(newy < -1):
-                            newy = -1
-                        if(newy > 1):
-                            newy = 1
-                        if(newz < 0):
-                            newz = 0
-                        if(newz > 1.5):
-                            newz = 1.5
-                        #"""
+                    if self.chest_pos.is_valid():
+                        self.valid_chest_pos = self.chest_pos
+                        # self.last_valid_chest_pos.z = self.chest_pos.z +.4
 
+                    # Fit the angle of the wand in the interval 0-4
+                    self.length_from_wand = .5
 
-                        self.send_setpoint(self.scf, Position(newx, newy, newz))
+                    if self.wand_pos.is_valid() and self.wand_pos_R.is_valid():
+
+                        self.end_of_wand.x = self.valid_wand_pos.x + round(
+                            math.cos(math.radians(self.valid_wand_pos.yaw)), 4) * self.length_from_wand
+                        self.end_of_wand.y = self.valid_wand_pos.y + round(
+                            math.sin(math.radians(self.valid_wand_pos.yaw)), 4) * self.length_from_wand
+                        self.end_of_wand.z = self.valid_wand_pos.z + round(
+                            math.sin(math.radians(self.valid_wand_pos.pitch)), 4) * self.length_from_wand
+
+                        self.end_of_wand_R.x = self.valid_wand_pos_R.x + round(
+                            math.cos(math.radians(self.valid_wand_pos_R.yaw)), 4) * self.length_from_wand
+                        self.end_of_wand_R.y = self.valid_wand_pos_R.y + round(
+                            math.sin(math.radians(self.valid_wand_pos_R.yaw)), 4) * self.length_from_wand
+                        self.end_of_wand_R.z = self.valid_wand_pos_R.z + round(
+                            math.sin(math.radians(self.valid_wand_pos_R.pitch)), 4) * self.length_from_wand
+
+                        self.mid_pos.x = self.end_of_wand.x + (.5) * (self.end_of_wand_R.x - self.end_of_wand.x)
+                        self.mid_pos.y = self.end_of_wand.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand.y)
+                        self.mid_pos.z = self.end_of_wand.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand.z)
+
+                        if self.end_of_wand.distance_to(self.end_of_wand_R) < .5 and self.mid_pos.distance_to(self.valid_cf_pos) < .4:
+                            self.current_goal_pos = self.mid_pos
+
+                        elif self.end_of_wand.distance_to(self.end_of_wand_R) > .5:
+                            self.current_goal_pos = self.valid_cf_pos
+
                     else:
-                        self.length_from_wand = (2 * (
-                                (self.last_valid_wand_pos.roll + 90) / 180) -
-                                                 1) + 2
-                        self.send_setpoint(
-                            self.scf,
-                            Position(
-                                self.last_valid_wand_pos.x + round(
-                                    math.cos(
-                                        math.radians(
-                                            self.last_valid_wand_pos.yaw)),
-                                    4) * self.length_from_wand,
-                                self.last_valid_wand_pos.y + round(
-                                    math.sin(
-                                        math.radians(
-                                            self.last_valid_wand_pos.yaw)),
-                                    4) * self.length_from_wand,
-                                int(self.last_valid_wand_pos.z + round(
-                                    math.sin(
-                                        math.radians(self.last_valid_wand_pos.
-                                                     pitch)), 4) *
-                                    self.length_from_wand)))
+                        self.current_goal_pos = self.valid_cf_pos
+
+                    if (self.current_goal_pos.x < -1):
+                        self.current_goal_pos.x = -1
+                    if (self.current_goal_pos.x > 1):
+                        self.current_goal_pos.x = 1
+                    if (self.current_goal_pos.y < -1):
+                        self.current_goal_pos.y = -1
+                    if (self.current_goal_pos.y > 1):
+                        self.current_goal_pos.y = 1
+                    if (self.current_goal_pos.z < 0):
+                        self.current_goal_pos.z = 0
+                    if (self.current_goal_pos.z > 1.5):
+                        self.current_goal_pos.z = 1.5
+
+                    self.send_setpoint(self.scf, self.current_goal_pos)
 
                 elif self.flight_mode == FlightModeStates.LIFT:
 
@@ -1390,7 +1424,6 @@ class QualisysTab(Tab, qualisys_tab_class):
 
                 elif self.flight_mode == FlightModeStates.HOVERING:
                     self.send_setpoint(self.scf, self.current_goal_pos)
-
 
                 elif self.flight_mode == FlightModeStates.RECORD:
 
@@ -1446,10 +1479,7 @@ class QualisysTab(Tab, qualisys_tab_class):
                         self.switch_flight_mode(FlightModeStates.PATH)
 
                 elif self.flight_mode == FlightModeStates.GROUNDED:
-                    # value = 50
-                    # self.set_led_color((255, 0, 255), 5)
-                    # print("setting LED intensity to ", value)
-                    # self.set_led_intensity(value)
+
                     pass  # If gounded, the control is switched back to gamepad
 
                 time.sleep(0.001)
@@ -1642,6 +1672,18 @@ class Position:
         return math.sqrt(
             math.pow(self.x - other_point.x, 2) +
             math.pow(self.y - other_point.y, 2) +
+            math.pow(self.z - other_point.z, 2))
+
+    def distance_to_x(self, other_point):
+        return math.sqrt(
+            math.pow(self.x - other_point.x, 2))
+
+    def distance_to_y(self, other_point):
+        return math.sqrt(
+            math.pow(self.y - other_point.y, 2))
+
+    def distance_to_z(self, other_point):
+        return math.sqrt(
             math.pow(self.z - other_point.z, 2))
 
     def is_valid(self):
