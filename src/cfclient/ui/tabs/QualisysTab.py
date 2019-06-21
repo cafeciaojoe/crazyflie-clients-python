@@ -1099,7 +1099,7 @@ class QualisysTab(Tab, qualisys_tab_class):
 
             # The threshold for how many frames without tracking
             # is allowed before the cf's motors are stopped
-            lost_tracking_threshold = 100
+            lost_tracking_threshold = 200
 
             # the threshold for how many frames without tracking
             # is allowed before the hand pads before the cf goes back to
@@ -1113,7 +1113,9 @@ class QualisysTab(Tab, qualisys_tab_class):
             self.circle_angle = 0.0
 
             # this adds a little room for the x y and z values.
-            leeway = .15
+            leeway = .25
+
+            self.length_from_wand = .25
 
             increment = 30
 
@@ -1161,11 +1163,11 @@ class QualisysTab(Tab, qualisys_tab_class):
                     if self.valid_cf_pos.distance_to(
                             Position(self.current_goal_pos.x,
                                      self.current_goal_pos.y,
-                                     (self.current_goal_pos.z / self.land_rate
-                                     ))) < self.path_pos_threshold:
-                        self.land_rate *= 1.05
+                                     (self.current_goal_pos.z / self.land_rate))) < self.path_pos_threshold:
+                        self.land_rate *= 1.001
+                        print(self.land_rate)
 
-                    if self.land_rate > 1000:
+                    if self.land_rate > 30:
                         self.send_setpoint(self.scf, Position(0, 0, 0))
                         if self.land_for_recording:
                             # Return the control to the recording mode
@@ -1228,34 +1230,55 @@ class QualisysTab(Tab, qualisys_tab_class):
                     if self.valid_cf_pos.distance_to(
                             self.current_goal_pos) < self.circle_pos_threshold:
 
-                        """finds the smallest disance from a 2m imaginary line emitting from the wands,
-                         used to determine how accurately the hands are pointed at the wands"""
-                        smallest_distance = leeway
-                        smallest_distance_R = leeway
+                        if self.wand_pos.is_valid():
+                            self.valid_wand_pos = self.wand_pos
+
+                        if self.wand_pos_R.is_valid():
+                            self.valid_wand_pos_R = self.wand_pos_R
 
                         if self.wand_pos.is_valid() and self.wand_pos_R.is_valid():
 
-                            for x in range(1,increment):
-                                self.current_wand_range.x = self.wand_pos.x + round(math.cos(math.radians(self.wand_pos.yaw)),4) * (self.max_wand_range/x)
-                                self.current_wand_range.y = self.wand_pos.y + round(math.sin(math.radians(self.wand_pos.yaw)),4) * (self.max_wand_range/x)
-                                self.current_wand_range.z = self.wand_pos.z + round(math.sin(math.radians(self.wand_pos.pitch)), 4) * (self.max_wand_range/x)
+                            """find the mid point between two points a certain distance away from the wands"""
+                            self.end_of_wand.x = self.valid_wand_pos.x + round(
+                                math.cos(math.radians(self.valid_wand_pos.yaw)), 4) * self.length_from_wand
+                            self.end_of_wand.y = self.valid_wand_pos.y + round(
+                                math.sin(math.radians(self.valid_wand_pos.yaw)), 4) * self.length_from_wand
+                            self.end_of_wand.z = self.valid_wand_pos.z + round(
+                                math.sin(math.radians(self.valid_wand_pos.pitch)), 4) * self.length_from_wand
 
-                                self.current_wand_range_R.x = self.wand_pos_R.x + round(math.cos(math.radians(self.wand_pos_R.yaw)),4) * (self.max_wand_range/x)
-                                self.current_wand_range_R.y = self.wand_pos_R.y + round(math.sin(math.radians(self.wand_pos_R.yaw)),4) * (self.max_wand_range/x)
-                                self.current_wand_range_R.z = self.wand_pos_R.z + round(math.sin(math.radians(self.wand_pos_R.pitch)), 4) * (self.max_wand_range/x)
+                            self.end_of_wand_R.x = self.valid_wand_pos_R.x + round(
+                                math.cos(math.radians(self.valid_wand_pos_R.yaw)), 4) * self.length_from_wand
+                            self.end_of_wand_R.y = self.valid_wand_pos_R.y + round(
+                                math.sin(math.radians(self.valid_wand_pos_R.yaw)), 4) * self.length_from_wand
+                            self.end_of_wand_R.z = self.valid_wand_pos_R.z + round(
+                                math.sin(math.radians(self.valid_wand_pos_R.pitch)), 4) * self.length_from_wand
 
-                                current_distance = self.valid_cf_pos.distance_to(self.current_wand_range)
-                                current_distance_R = self.valid_cf_pos.distance_to(self.current_wand_range_R)
+                            self.mid_pos.x = self.end_of_wand.x + (.5) * (self.end_of_wand_R.x - self.end_of_wand.x)
+                            self.mid_pos.y = self.end_of_wand.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand.y)
+                            self.mid_pos.z = self.end_of_wand.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand.z)
 
-                                if current_distance < smallest_distance:
-                                    smallest_distance = current_distance
+                            current_distance = self.valid_cf_pos.distance_to(self.end_of_wand)
+                            current_distance_R = self.valid_cf_pos.distance_to(self.end_of_wand_R)
 
-                                    # logger.info('smallest distance L {}'.format(smallest_distance))
+                            smallest_distance = leeway
+                            smallest_distance_R = leeway
 
-                                if current_distance_R < smallest_distance_R:
-                                    smallest_distance_R = current_distance_R
+                            if current_distance < smallest_distance:
+                                smallest_distance = current_distance
 
-                                    # logger.info('smallest distance R {}'.format(smallest_distance_R))
+                                # logger.info('smallest distance L {}'.format(smallest_distance))
+
+                            if current_distance_R < smallest_distance_R:
+                                smallest_distance_R = current_distance_R
+
+                                # logger.info('smallest distance R {}'.format(smallest_distance_R))
+
+                            """set the led intensity as a function of the smallest distance found"""
+                            self.led_intensity = self.led_intensity_max - round(
+                                (self.led_intensity_max - self.led_intensity_min) * (
+                                    (((smallest_distance + smallest_distance_R) / 2) / leeway)), 0)
+                            # print("setting LED intensity to ", led_intensity)
+                            self.set_led_intensity(self.led_intensity)
 
                             # aggressivly scaling the circle res (using ^x) so that you can slw it down from far away
                             self.circle_resolution = self.circle_resolution_slow + (self.circle_resolution_fast - self.circle_resolution_slow) * ((((smallest_distance + smallest_distance_R)/2) / leeway)**5)
@@ -1264,20 +1287,12 @@ class QualisysTab(Tab, qualisys_tab_class):
                             circle_resolution_proportion = (self.circle_resolution-self.circle_resolution_slow)/self.circle_resolution_fast
                             # logger.info('circle_resolution_proportion {}'.format(circle_resolution_proportion))
 
-                            """set the led intensity as a function of the smallest distance found"""
-                            self.led_intensity = self.led_intensity_max - round((self.led_intensity_max-self.led_intensity_min)*((((smallest_distance + smallest_distance_R)/2) / leeway)),0)
-                            # print("setting LED intensity to ", led_intensity)
-                            self.set_led_intensity(self.led_intensity)
-                            # self.osc.send_message(b'/intensity',[float(self.led_intensity)])
-
                         else:
                             frames_without_tracking_wands += 1
                             if frames_without_tracking_wands > 200:
                                 self.circle_resolution = self.circle_resolution_fast
                                 frames_without_tracking_wands = 0
                                 # logger.info('wand lost counter reset')
-
-
 
                         if position_hold_timer >= self.position_hold_timelimit:
 
@@ -1372,13 +1387,6 @@ class QualisysTab(Tab, qualisys_tab_class):
                     if self.wand_pos_R.is_valid():
                         self.valid_wand_pos_R = self.wand_pos_R
 
-                    if self.chest_pos.is_valid():
-                        self.valid_chest_pos = self.chest_pos
-                        # self.last_valid_chest_pos.z = self.chest_pos.z +.4
-
-                    # Fit the angle of the wand in the interval 0-4
-                    self.length_from_wand = .25
-
                     if self.wand_pos.is_valid() and self.wand_pos_R.is_valid():
 
                         """find the mid point between two points a certain distance away from the wands"""
@@ -1400,37 +1408,21 @@ class QualisysTab(Tab, qualisys_tab_class):
                         self.mid_pos.y = self.end_of_wand.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand.y)
                         self.mid_pos.z = self.end_of_wand.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand.z)
 
-                        """finds the smallest disance from a 2m imaginary line emitting from the wands,
-                         used to determine how accurately the hands are pointed at the wands"""
+                        current_distance = self.valid_cf_pos.distance_to(self.end_of_wand)
+                        current_distance_R = self.valid_cf_pos.distance_to(self.end_of_wand_R)
+
                         smallest_distance = leeway
                         smallest_distance_R = leeway
-                        for x in range(1, increment):
-                            self.current_wand_range.x = self.wand_pos.x + round(
-                                math.cos(math.radians(self.wand_pos.yaw)), 4) * (self.max_wand_range / x)
-                            self.current_wand_range.y = self.wand_pos.y + round(
-                                math.sin(math.radians(self.wand_pos.yaw)), 4) * (self.max_wand_range / x)
-                            self.current_wand_range.z = self.wand_pos.z + round(
-                                math.sin(math.radians(self.wand_pos.pitch)), 4) * (self.max_wand_range / x)
 
-                            self.current_wand_range_R.x = self.wand_pos_R.x + round(
-                                math.cos(math.radians(self.wand_pos_R.yaw)), 4) * (self.max_wand_range / x)
-                            self.current_wand_range_R.y = self.wand_pos_R.y + round(
-                                math.sin(math.radians(self.wand_pos_R.yaw)), 4) * (self.max_wand_range / x)
-                            self.current_wand_range_R.z = self.wand_pos_R.z + round(
-                                math.sin(math.radians(self.wand_pos_R.pitch)), 4) * (self.max_wand_range / x)
+                        if current_distance < smallest_distance:
+                            smallest_distance = current_distance
 
-                            current_distance = self.valid_cf_pos.distance_to(self.current_wand_range)
-                            current_distance_R = self.valid_cf_pos.distance_to(self.current_wand_range_R)
+                            # logger.info('smallest distance L {}'.format(smallest_distance))
 
-                            if current_distance < smallest_distance:
-                                smallest_distance = current_distance
+                        if current_distance_R < smallest_distance_R:
+                            smallest_distance_R = current_distance_R
 
-                                # logger.info('smallest distance L {}'.format(smallest_distance))
-
-                            if current_distance_R < smallest_distance_R:
-                                smallest_distance_R = current_distance_R
-
-                                # logger.info('smallest distance R {}'.format(smallest_distance_R))
+                            # logger.info('smallest distance R {}'.format(smallest_distance_R))
 
                         """set the led intensity as a function of the smallest distance found"""
                         self.led_intensity = self.led_intensity_max - round((self.led_intensity_max - self.led_intensity_min) * (
@@ -1438,44 +1430,37 @@ class QualisysTab(Tab, qualisys_tab_class):
                         # print("setting LED intensity to ", led_intensity)
                         self.set_led_intensity(self.led_intensity)
 
-                        """if the cf is far away from the head to the head"""
-                        if self.valid_cf_pos.distance_to(self.valid_chest_pos) > .3:
-                            """if the next move is not too far away from the drone (ie too fast)"""
-                            if self.valid_cf_pos.distance_to(self.mid_pos) < .3:
-                                """if the wand ends are close to each other and the midpoint is close to the drone"""
-                                if self.end_of_wand.distance_to(self.end_of_wand_R) < .5 and self.mid_pos.distance_to(self.valid_cf_pos) < .4:
+                        """if the next move is not too far away from the drone (ie too fast)"""
+                        if self.valid_cf_pos.distance_to(self.mid_pos) < leeway:
+                            """if the wand ends are close to each other and the midpoint is close to the drone"""
+                            if self.end_of_wand.distance_to(self.end_of_wand_R) < leeway:
 
-                                    self.current_goal_pos = self.mid_pos
-                                    self.colour_value -= .75
-                                    if self.colour_value <= 0:
-                                        self.colour_value = 0
-                                    for x in range(12):
-                                        self.set_led_color((255, self.colour_value, 255), x)
+                                self.current_goal_pos = self.mid_pos
+                                self.colour_value -= .75
+                                if self.colour_value <= 0:
+                                    self.colour_value = 0
+                                for x in range(12):
+                                    self.set_led_color((255, self.colour_value, 255), x)
 
-                                elif self.end_of_wand.distance_to(self.end_of_wand_R) > .5:
-                                    print('wands to wide')
-                                    self.current_goal_pos = self.valid_cf_pos
-
-                                    self.colour_value += .75
-                                    if self.colour_value >= 255:
-                                        self.colour_value = 255
-                                    for x in range(12):
-                                        self.set_led_color((255, self.colour_value, 255), x)
-
-                            elif self.valid_cf_pos.distance_to(self.mid_pos) > .3:
+                            elif self.end_of_wand.distance_to(self.end_of_wand_R) > leeway:
+                                print('wands to wide')
                                 self.current_goal_pos = self.valid_cf_pos
-                                print('drone too fast')
-                                self.colour_value += .25
+
+                                self.colour_value += .75
                                 if self.colour_value >= 255:
                                     self.colour_value = 255
                                 for x in range(12):
                                     self.set_led_color((255, self.colour_value, 255), x)
 
-                        # elif self.valid_cf_pos.distance_to(self.valid_chest_pos) < .3:
-                        #     print('drone too close to head')
-                        #     self.current_goal_pos.x = self.valid_chest_pos.x + (2) * (self.mid_pos.x - self.valid_chest_pos.x)
-                        #     self.current_goal_pos.y = self.valid_chest_pos.y + (2) * (self.mid_pos.y - self.valid_chest_pos.y)
-                        #     self.current_goal_pos.z = self.valid_chest_pos.z + (2) * (self.mid_pos.z - self.valid_chest_pos.z)
+                        elif self.valid_cf_pos.distance_to(self.mid_pos) > leeway:
+                            self.current_goal_pos = self.valid_cf_pos
+                            print('drone too fast')
+                            self.colour_value += .25
+                            if self.colour_value >= 255:
+                                self.colour_value = 255
+                            for x in range(12):
+                                self.set_led_color((255, self.colour_value, 255), x)
+
                     else:
                         self.current_goal_pos = self.valid_cf_pos
                         print('wands not valid')
@@ -1519,50 +1504,55 @@ class QualisysTab(Tab, qualisys_tab_class):
                 elif self.flight_mode == FlightModeStates.HOVERING:
                     self.send_setpoint(self.scf, self.current_goal_pos)
 
-                    # Check if the cf has reached the goal position,
-                    # if it has set a new goal position
-                    """finds the smallest disance from a 2m imaginary line emitting from the wands,
-                     used to determine how accurately the hands are pointed at the wands"""
-                    smallest_distance = leeway
-                    smallest_distance_R = leeway
+                    if self.wand_pos.is_valid():
+                        self.valid_wand_pos = self.wand_pos
+
+                    if self.wand_pos_R.is_valid():
+                        self.valid_wand_pos_R = self.wand_pos_R
 
                     if self.wand_pos.is_valid() and self.wand_pos_R.is_valid():
 
-                        for x in range(1, increment):
-                            self.current_wand_range.x = self.wand_pos.x + round(
-                                math.cos(math.radians(self.wand_pos.yaw)), 4) * (self.max_wand_range / x)
-                            self.current_wand_range.y = self.wand_pos.y + round(
-                                math.sin(math.radians(self.wand_pos.yaw)), 4) * (self.max_wand_range / x)
-                            self.current_wand_range.z = self.wand_pos.z + round(
-                                math.sin(math.radians(self.wand_pos.pitch)), 4) * (self.max_wand_range / x)
+                        """find the mid point between two points a certain distance away from the wands"""
+                        self.end_of_wand.x = self.valid_wand_pos.x + round(
+                            math.cos(math.radians(self.valid_wand_pos.yaw)), 4) * self.length_from_wand
+                        self.end_of_wand.y = self.valid_wand_pos.y + round(
+                            math.sin(math.radians(self.valid_wand_pos.yaw)), 4) * self.length_from_wand
+                        self.end_of_wand.z = self.valid_wand_pos.z + round(
+                            math.sin(math.radians(self.valid_wand_pos.pitch)), 4) * self.length_from_wand
 
-                            self.current_wand_range_R.x = self.wand_pos_R.x + round(
-                                math.cos(math.radians(self.wand_pos_R.yaw)), 4) * (self.max_wand_range / x)
-                            self.current_wand_range_R.y = self.wand_pos_R.y + round(
-                                math.sin(math.radians(self.wand_pos_R.yaw)), 4) * (self.max_wand_range / x)
-                            self.current_wand_range_R.z = self.wand_pos_R.z + round(
-                                math.sin(math.radians(self.wand_pos_R.pitch)), 4) * (self.max_wand_range / x)
+                        self.end_of_wand_R.x = self.valid_wand_pos_R.x + round(
+                            math.cos(math.radians(self.valid_wand_pos_R.yaw)), 4) * self.length_from_wand
+                        self.end_of_wand_R.y = self.valid_wand_pos_R.y + round(
+                            math.sin(math.radians(self.valid_wand_pos_R.yaw)), 4) * self.length_from_wand
+                        self.end_of_wand_R.z = self.valid_wand_pos_R.z + round(
+                            math.sin(math.radians(self.valid_wand_pos_R.pitch)), 4) * self.length_from_wand
 
-                            current_distance = self.valid_cf_pos.distance_to(self.current_wand_range)
-                            current_distance_R = self.valid_cf_pos.distance_to(self.current_wand_range_R)
+                        self.mid_pos.x = self.end_of_wand.x + (.5) * (self.end_of_wand_R.x - self.end_of_wand.x)
+                        self.mid_pos.y = self.end_of_wand.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand.y)
+                        self.mid_pos.z = self.end_of_wand.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand.z)
 
-                            if current_distance < smallest_distance:
-                                smallest_distance = current_distance
+                        current_distance = self.valid_cf_pos.distance_to(self.end_of_wand)
+                        current_distance_R = self.valid_cf_pos.distance_to(self.end_of_wand_R)
 
-                                # logger.info('smallest distance L {}'.format(smallest_distance))
+                        smallest_distance = leeway
+                        smallest_distance_R = leeway
 
-                            if current_distance_R < smallest_distance_R:
-                                smallest_distance_R = current_distance_R
+                        if current_distance < smallest_distance:
+                            smallest_distance = current_distance
 
-                                # logger.info('smallest distance R {}'.format(smallest_distance_R))
+                            # logger.info('smallest distance L {}'.format(smallest_distance))
+
+                        if current_distance_R < smallest_distance_R:
+                            smallest_distance_R = current_distance_R
+
+                            # logger.info('smallest distance R {}'.format(smallest_distance_R))
 
                         """set the led intensity as a function of the smallest distance found"""
                         self.led_intensity = self.led_intensity_max - round(
                             (self.led_intensity_max - self.led_intensity_min) * (
-                            (((smallest_distance + smallest_distance_R) / 2) / leeway)), 0)
+                                (((smallest_distance + smallest_distance_R) / 2) / leeway)), 0)
                         # print("setting LED intensity to ", led_intensity)
                         self.set_led_intensity(self.led_intensity)
-                        # self.osc.send_message(b'/intensity', [float(self.led_intensity)])
 
                 elif self.flight_mode == FlightModeStates.RECORD:
 
@@ -1618,56 +1608,55 @@ class QualisysTab(Tab, qualisys_tab_class):
                         self.switch_flight_mode(FlightModeStates.PATH)
 
                 elif self.flight_mode == FlightModeStates.GROUNDED:
-                    # Check if the cf has reached the goal position,
-                    # if it has set a new goal position
-                    """finds the smallest disance from a 2m imaginary line emitting from the wands,
-                     used to determine how accurately the hands are pointed at the wands"""
-                    smallest_distance = leeway
-                    smallest_distance_R = leeway
+                    if self.wand_pos.is_valid():
+                        self.valid_wand_pos = self.wand_pos
+
+                    if self.wand_pos_R.is_valid():
+                        self.valid_wand_pos_R = self.wand_pos_R
 
                     if self.wand_pos.is_valid() and self.wand_pos_R.is_valid():
 
-                        for x in range(1, increment):
-                            self.current_wand_range.x = self.wand_pos.x + round(
-                                math.cos(math.radians(self.wand_pos.yaw)), 4) * (self.max_wand_range / x)
-                            self.current_wand_range.y = self.wand_pos.y + round(
-                                math.sin(math.radians(self.wand_pos.yaw)), 4) * (self.max_wand_range / x)
-                            self.current_wand_range.z = self.wand_pos.z + round(
-                                math.sin(math.radians(self.wand_pos.pitch)), 4) * (self.max_wand_range / x)
+                        """find the mid point between two points a certain distance away from the wands"""
+                        self.end_of_wand.x = self.valid_wand_pos.x + round(
+                            math.cos(math.radians(self.valid_wand_pos.yaw)), 4) * self.length_from_wand
+                        self.end_of_wand.y = self.valid_wand_pos.y + round(
+                            math.sin(math.radians(self.valid_wand_pos.yaw)), 4) * self.length_from_wand
+                        self.end_of_wand.z = self.valid_wand_pos.z + round(
+                            math.sin(math.radians(self.valid_wand_pos.pitch)), 4) * self.length_from_wand
 
-                            self.current_wand_range_R.x = self.wand_pos_R.x + round(
-                                math.cos(math.radians(self.wand_pos_R.yaw)), 4) * (self.max_wand_range / x)
-                            self.current_wand_range_R.y = self.wand_pos_R.y + round(
-                                math.sin(math.radians(self.wand_pos_R.yaw)), 4) * (self.max_wand_range / x)
-                            self.current_wand_range_R.z = self.wand_pos_R.z + round(
-                                math.sin(math.radians(self.wand_pos_R.pitch)), 4) * (self.max_wand_range / x)
+                        self.end_of_wand_R.x = self.valid_wand_pos_R.x + round(
+                            math.cos(math.radians(self.valid_wand_pos_R.yaw)), 4) * self.length_from_wand
+                        self.end_of_wand_R.y = self.valid_wand_pos_R.y + round(
+                            math.sin(math.radians(self.valid_wand_pos_R.yaw)), 4) * self.length_from_wand
+                        self.end_of_wand_R.z = self.valid_wand_pos_R.z + round(
+                            math.sin(math.radians(self.valid_wand_pos_R.pitch)), 4) * self.length_from_wand
 
-                            current_distance = self.valid_cf_pos.distance_to(self.current_wand_range)
-                            current_distance_R = self.valid_cf_pos.distance_to(self.current_wand_range_R)
+                        self.mid_pos.x = self.end_of_wand.x + (.5) * (self.end_of_wand_R.x - self.end_of_wand.x)
+                        self.mid_pos.y = self.end_of_wand.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand.y)
+                        self.mid_pos.z = self.end_of_wand.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand.z)
 
-                            if current_distance < smallest_distance:
-                                smallest_distance = current_distance
+                        current_distance = self.valid_cf_pos.distance_to(self.end_of_wand)
+                        current_distance_R = self.valid_cf_pos.distance_to(self.end_of_wand_R)
 
-                                # logger.info('smallest distance L {}'.format(smallest_distance))
+                        smallest_distance = leeway
+                        smallest_distance_R = leeway
 
-                            if current_distance_R < smallest_distance_R:
-                                smallest_distance_R = current_distance_R
+                        if current_distance < smallest_distance:
+                            smallest_distance = current_distance
 
-                                # logger.info('smallest distance R {}'.format(smallest_distance_R))
+                            # logger.info('smallest distance L {}'.format(smallest_distance))
+
+                        if current_distance_R < smallest_distance_R:
+                            smallest_distance_R = current_distance_R
+
+                            # logger.info('smallest distance R {}'.format(smallest_distance_R))
 
                         """set the led intensity as a function of the smallest distance found"""
                         self.led_intensity = self.led_intensity_max - round(
                             (self.led_intensity_max - self.led_intensity_min) * (
                                 (((smallest_distance + smallest_distance_R) / 2) / leeway)), 0)
-                        # print("setting LED intensity to ", self.led_intensity)
+                        # print("setting LED intensity to ", led_intensity)
                         self.set_led_intensity(self.led_intensity)
-
-                        # #TODO LED_INTENSITY
-                        # osc_interval = .05
-                        # if time.time() - self.last_checked_time > osc_interval:
-                        #     self.osc.send_message(b'/intensity', [float(self.led_intensity)])
-                        #     self.last_checked_time = time.time()
-
 
                     pass  # If gounded, the control is switched back to gamepad
 
