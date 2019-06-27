@@ -1113,7 +1113,7 @@ class QualisysTab(Tab, qualisys_tab_class):
             self.circle_angle = 0.0
 
             # this adds a little room for the x y and z values.
-            leeway = .275
+            leeway = .25
 
             self.length_from_wand = .2
 
