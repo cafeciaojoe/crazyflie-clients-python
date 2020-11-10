@@ -26,17 +26,29 @@
 
 """Initialization of the PC Client GUI."""
 
+import platform
 import sys
 import os
+import asyncio
 import argparse
 import datetime
+import signal
 
 import logging
 
+from quamash import QSelectorEventLoop
 import cfclient
 
 __author__ = 'Bitcraze AB'
 __all__ = []
+
+
+def handle_sigint(app):
+    logging.info('SIGINT received, exiting ...')
+    if app:
+        app.closeAllWindows()
+    else:
+        sys.exit(0)
 
 
 def main():
@@ -47,6 +59,15 @@ def main():
     all imports and exit verbosely if a library is not found. Disable outputs
     to stdout and start the GUI.
     """
+    app = None
+
+    # Connect ctrl-c (SIGINT) signal
+    signal.signal(signal.SIGINT, lambda sig, frame: handle_sigint(app))
+
+    # Allows frozen mac build to load libraries from app bundle
+    if getattr(sys, 'frozen', False) and platform.system() == 'Darwin':
+        os.environ['DYLD_FALLBACK_LIBRARY_PATH'] = os.path.dirname(
+            sys.executable)
 
     # Set ERROR level for PyQt5 logger
     qtlogger = logging.getLogger('PyQt5')
@@ -57,6 +78,10 @@ def main():
     parser.add_argument('--debug', '-d', nargs=1, default='info', type=str,
                         help="set debug level "
                              "[minimal, info, debug, debugfile]")
+    parser.add_argument('--check-imports', type=bool, default=False,
+                        const=True, nargs="?",
+                        help="Check python imports and exit successfully" +
+                        " (intended for CI)")
     args = parser.parse_args()
     debug = args.debug
 
@@ -131,14 +156,25 @@ def main():
             logger.info("Foundation not found. Menu will show python as "
                         "application name")
 
+    if args.check_imports:
+        logger.info("All imports successful!")
+        sys.exit(0)
+
     # Start up the main user-interface
     from .ui.main import MainUI
     from PyQt5.QtWidgets import QApplication
     from PyQt5.QtGui import QIcon
 
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+    from cfclient.utils.ui import UiUtils
 
-    app.setWindowIcon(QIcon(cfclient.module_path + "/icon-256.png"))
+    # Create and set an event loop that combines qt and asyncio
+    loop = QSelectorEventLoop(app)
+    asyncio.set_event_loop(loop)
+
+    app.setWindowIcon(QIcon(cfclient.module_path + "/ui/icons/icon-256.png"))
+    app.setApplicationName("Crazyflie client")
     # Make sure the right icon is set in Windows 7+ taskbar
     if os.name == 'nt':
         import ctypes
@@ -151,7 +187,9 @@ def main():
             pass
 
     main_window = MainUI()
+    app.setFont(UiUtils.FONT)
     main_window.show()
+    main_window.set_default_theme()
     sys.exit(app.exec_())
 
 

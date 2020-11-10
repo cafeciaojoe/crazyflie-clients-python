@@ -39,6 +39,7 @@ from cfclient.utils.config import Config
 from cfclient.utils.config_manager import ConfigManager
 from cfclient.utils.input import JoystickReader
 from cfclient.utils.logconfigreader import LogConfigReader
+from cfclient.utils.ui import UiUtils
 from cfclient.utils.zmq_led_driver import ZMQLEDDriver
 from cfclient.utils.zmq_param import ZMQParamAccess
 from cflib.crazyflie import Crazyflie
@@ -59,10 +60,10 @@ from PyQt5.QtWidgets import QLabel
 from PyQt5.QtWidgets import QMenu
 from PyQt5.QtWidgets import QMessageBox
 
-from .dialogs.cf1config import Cf1ConfigDialog
 from .dialogs.cf2config import Cf2ConfigDialog
 from .dialogs.inputconfigdialogue import InputConfigDialogue
 from .dialogs.logconfigdialogue import LogConfigDialogue
+
 
 __author__ = 'Bitcraze AB'
 __all__ = ['MainUI']
@@ -95,24 +96,6 @@ class BatteryStates:
     BATTERY, CHARGING, CHARGED, LOW_POWER = list(range(4))
 
 
-COLOR_BLUE = '#3399ff'
-COLOR_GREEN = '#00ff60'
-COLOR_RED = '#cc0404'
-
-
-def progressbar_stylesheet(color):
-    return """
-        QProgressBar {
-            border: 1px solid #333;
-            background-color: transparent;
-        }
-
-        QProgressBar::chunk {
-            background-color: """ + color + """;
-        }
-    """
-
-
 class MainUI(QtWidgets.QMainWindow, main_window_class):
     connectionLostSignal = pyqtSignal(str, str)
     connectionInitiatedSignal = pyqtSignal(str)
@@ -136,42 +119,6 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
             self.resize(size[0], size[1])
         except KeyError:
             pass
-
-        ######################################################
-        # By lxrocks
-        # 'Skinny Progress Bar' tweak for Yosemite
-        # Tweak progress bar - artistic I am not - so pick your own colors !!!
-        # Only apply to Yosemite
-        ######################################################
-        import platform
-
-        if platform.system() == 'Darwin':
-
-            (Version, junk, machine) = platform.mac_ver()
-            logger.info("This is a MAC - checking if we can apply Progress "
-                        "Bar Stylesheet for Yosemite Skinny Bars ")
-            yosemite = (10, 10, 0)
-            tVersion = tuple(map(int, (Version.split("."))))
-
-            if tVersion >= yosemite:
-                logger.info("Found Yosemite - applying stylesheet")
-
-                tcss = """
-                    QProgressBar {
-                        border: 1px solid grey;
-                        border-radius: 5px;
-                        text-align: center;
-                    }
-                    QProgressBar::chunk {
-                        background-color: """ + COLOR_BLUE + """;
-                    }
-                 """
-                self.setStyleSheet(tcss)
-
-            else:
-                logger.info("Pre-Yosemite - skinny bar stylesheet not applied")
-
-        ######################################################
 
         self.cf = Crazyflie(ro_cache=None,
                             rw_cache=cfclient.config_path + "/cache")
@@ -198,7 +145,8 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
         self._active_device = ""
         # self.configGroup = QActionGroup(self._menu_mappings, exclusive=True)
 
-        self._mux_group = QActionGroup(self._menu_inputdevice, exclusive=True)
+        self._mux_group = QActionGroup(self._menu_inputdevice)
+        self._mux_group.setExclusive(True)
 
         # TODO: Need to reload configs
         # ConfigManager().conf_needs_reload.add_callback(self._reload_configs)
@@ -274,10 +222,7 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
         self._log_error_signal.connect(self._logging_error)
 
         self.batteryBar.setTextVisible(False)
-        self.batteryBar.setStyleSheet(progressbar_stylesheet(COLOR_BLUE))
-
         self.linkQualityBar.setTextVisible(False)
-        self.linkQualityBar.setStyleSheet(progressbar_stylesheet(COLOR_BLUE))
 
         # Connect link quality feedback
         self.cf.link_quality_updated.add_callback(self.linkQualitySignal.emit)
@@ -306,22 +251,24 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
         self.logConfigDialogue = LogConfigDialogue(cfclient.ui.pluginhelper)
         self._bootloader_dialog = BootloaderDialog(cfclient.ui.pluginhelper)
         self._cf2config_dialog = Cf2ConfigDialog(cfclient.ui.pluginhelper)
-        self._cf1config_dialog = Cf1ConfigDialog(cfclient.ui.pluginhelper)
         self.menuItemBootloader.triggered.connect(self._bootloader_dialog.show)
         self._about_dialog = AboutDialog(cfclient.ui.pluginhelper)
         self.menuItemAbout.triggered.connect(self._about_dialog.show)
         self._menu_cf2_config.triggered.connect(self._cf2config_dialog.show)
-        self._menu_cf1_config.triggered.connect(self._cf1config_dialog.show)
 
         # Load and connect tabs
         self.tabsMenuItem = QMenu("Tabs", self.menuView, enabled=True)
         self.menuView.addMenu(self.tabsMenuItem)
 
-        # self.tabsMenuItem.setMenu(QtWidgets.QMenu())
         tabItems = {}
         self.loadedTabs = []
         for tabClass in cfclient.ui.tabs.available:
             tab = tabClass(self.tabs, cfclient.ui.pluginhelper)
+
+            # Set reference for plot-tab.
+            if isinstance(tab, cfclient.ui.tabs.PlotTab):
+                cfclient.ui.pluginhelper.plotTab = tab
+
             item = QtWidgets.QAction(tab.getMenuName(), self, checkable=True)
             item.toggled.connect(tab.toggleVisibility)
             self.tabsMenuItem.addAction(item)
@@ -375,7 +322,8 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
         self._all_mux_nodes = ()
 
         # Check which Input muxes are available
-        self._mux_group = QActionGroup(self._menu_inputdevice, exclusive=True)
+        self._mux_group = QActionGroup(self._menu_inputdevice)
+        self._mux_group.setExclusive(True)
         for m in self.joystickReader.available_mux():
             node = QAction(m.name,
                            self._menu_inputdevice,
@@ -397,6 +345,41 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
             node.setData((m, mux_subnodes))
 
         self._mapping_support = True
+
+        # Add checkbuttons for theme-selection.
+        self._theme_group = QActionGroup(self.menuThemes)
+        self._theme_group.setExclusive(True)
+        self._theme_checkboxes = []
+        for theme in UiUtils.THEMES:
+            node = QAction(theme, self.menuThemes, checkable=True)
+            node.setObjectName(theme)
+            node.toggled.connect(self._theme_selected)
+            self._theme_checkboxes.append(node)
+            self._theme_group.addAction(node)
+            self.menuThemes.addAction(node)
+
+    def _theme_selected(self, *args):
+        """ Callback when a theme is selected. """
+        for checkbox in self._theme_checkboxes:
+            if checkbox.isChecked():
+                theme = checkbox.objectName()
+                app = QtWidgets.QApplication.instance()
+                app.setStyleSheet(UiUtils.select_theme(theme))
+                Config().set('theme', theme)
+
+    def _check_theme(self, theme_name):
+        # Check the default theme.
+        for theme in self._theme_checkboxes:
+            if theme.objectName() == theme_name:
+                theme.setChecked(True)
+                self._theme_selected(True)
+
+    def set_default_theme(self):
+        try:
+            theme = Config().get('theme')
+        except KeyError:
+            theme = 'Default'
+        self._check_theme(theme)
 
     def disable_input(self, disable):
         """
@@ -470,7 +453,6 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
             self.address.setEnabled(True)
             self.batteryBar.setValue(3000)
             self._menu_cf2_config.setEnabled(False)
-            self._menu_cf1_config.setEnabled(True)
             self.linkQualityBar.setValue(0)
             self.menuItemBootloader.setEnabled(True)
             self.logConfigAction.setEnabled(False)
@@ -489,7 +471,6 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
             # dialog.
             if len(self.cf.mem.get_mems(MemoryElement.TYPE_I2C)) > 0:
                 self._menu_cf2_config.setEnabled(True)
-            self._menu_cf1_config.setEnabled(False)
         elif self.uiState == UIState.CONNECTING:
             s = "Connecting to {} ...".format(self._selected_interface)
             self.setWindowTitle(s)
@@ -557,15 +538,15 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
     def _update_battery(self, timestamp, data, logconf):
         self.batteryBar.setValue(int(data["pm.vbat"] * 1000))
 
-        color = COLOR_BLUE
+        color = UiUtils.COLOR_BLUE
         # TODO firmware reports fully-charged state as 'Battery',
         # rather than 'Charged'
         if data["pm.state"] in [BatteryStates.CHARGING, BatteryStates.CHARGED]:
-            color = COLOR_GREEN
+            color = UiUtils.COLOR_GREEN
         elif data["pm.state"] == BatteryStates.LOW_POWER:
-            color = COLOR_RED
+            color = UiUtils.COLOR_RED
 
-        self.batteryBar.setStyleSheet(progressbar_stylesheet(color))
+        self.batteryBar.setStyleSheet(UiUtils.progressbar_stylesheet(color))
         self._aff_volts.setText(("%.3f" % data["pm.vbat"]))
 
     def _connected(self):
@@ -761,7 +742,8 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
         for menu in self._all_role_menus:
             role_menu = menu["rolemenu"]
             mux_menu = menu["muxmenu"]
-            dev_group = QActionGroup(role_menu, exclusive=True)
+            dev_group = QActionGroup(role_menu)
+            dev_group.setExclusive(True)
             for d in devs:
                 dev_node = QAction(d.name, role_menu, checkable=True,
                                    enabled=True)
@@ -772,7 +754,8 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
                 map_node = None
                 if d.supports_mapping:
                     map_node = QMenu("    Input map", role_menu, enabled=False)
-                    map_group = QActionGroup(role_menu, exclusive=True)
+                    map_group = QActionGroup(role_menu)
+                    map_group.setExclusive(True)
                     # Connect device node to map node for easy
                     # enabling/disabling when selection changes and device
                     # to easily enable it

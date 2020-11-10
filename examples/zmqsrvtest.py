@@ -31,8 +31,6 @@ ZMQ server test application. Use CTRL-C to end the application.
 NOTE! If connected to a Crazyflie this will power on the motors!
 """
 
-from __future__ import print_function
-
 from threading import Thread
 import signal
 import time
@@ -242,22 +240,6 @@ param_cmd = {
     "version": 1,
     "cmd": "param",
     "name": "system.selftestPassed",
-    "value": True
-}
-
-print("Setting param {} to {}...".format(param_cmd["name"],
-                                         param_cmd["value"]), end=' ')
-client_conn.send_json(param_cmd)
-resp = client_conn.recv_json()
-if resp["status"] == 0:
-    print("done!")
-else:
-    print("fail! {}".format(resp["msg"]))
-
-param_cmd = {
-    "version": 1,
-    "cmd": "param",
-    "name": "flightctrl.xmode",
     "value": True
 }
 

@@ -27,6 +27,7 @@
 The about dialog.
 """
 
+import os
 import sys
 
 import cfclient
@@ -36,6 +37,7 @@ from PyQt5.QtCore import PYQT_VERSION_STR
 from PyQt5 import QtWidgets
 from PyQt5 import uic
 from PyQt5.QtCore import pyqtSignal
+from cflib.crazyflie.mem import MemoryElement
 
 __author__ = 'Bitcraze AB'
 __all__ = ['AboutDialog']
@@ -64,8 +66,13 @@ PyQt: {pyqt_version}<br>
 <b>Crazyflie</b><br>
 Connected: {uri}<br>
 Firmware: {firmware}<br>
+<br>
+<b>Decks found</b><br>
+{decks}
+<br>
 <b>Sensors found</b><br>
 {imu_sensors}
+<br>
 <b>Sensors tests</b><br>
 {imu_sensor_tests}
 """
@@ -76,6 +83,7 @@ DEVICE_FORMAT = "{}: ({}) {}<br>"
 IMU_SENSORS_FORMAT = "{}: {}<br>"
 SENSOR_TESTS_FORMAT = "{}: {}<br>"
 FIRMWARE_FORMAT = "{:x}{:x} ({})"
+DECK_FORMAT = "{}: rev={}, adr={}<br>"
 
 CREDITS_FORMAT = """
 <b>Contributions</b><br>
@@ -94,6 +102,7 @@ CREDITS_FORMAT = """
 
 class AboutDialog(QtWidgets.QWidget, about_widget_class):
     _disconnected_signal = pyqtSignal(str)
+    _cb_deck_data_updated_signal = pyqtSignal(object)
 
     """Crazyflie client About box for debugging and information"""
 
@@ -107,10 +116,13 @@ class AboutDialog(QtWidgets.QWidget, about_widget_class):
         self._interface_text = ""
         self._imu_sensors_text = ""
         self._imu_sensor_test_text = ""
+        self._decks_text = ""
         self._uri = None
         self._fw_rev0 = None
         self._fw_rev1 = None
         self._fw_modified = None
+        self._firmware = None
+
         self._helper = helper
 
         helper.cf.param.add_update_callback(
@@ -124,10 +136,14 @@ class AboutDialog(QtWidgets.QWidget, about_widget_class):
         self._disconnected_signal.connect(self._disconnected)
         helper.cf.disconnected.add_callback(self._disconnected_signal.emit)
 
+        self._cb_deck_data_updated_signal.connect(self._deck_data_updated)
+
         # Open the Credits file and show it in the UI
         credits = ""
+        src = os.path.dirname(cfclient.module_path)
+        path = os.path.join(os.path.dirname(src), 'CREDITS.txt')
         try:
-            with open("CREDITS.txt", encoding='utf-8', mode='r') as f:
+            with open(path, encoding='utf-8') as f:
                 for line in f:
                     credits += "{}<br>".format(line)
         except IOError:
@@ -144,7 +160,6 @@ class AboutDialog(QtWidgets.QWidget, about_widget_class):
         for key in list(interface_status.keys()):
             self._interface_text += INTERFACE_FORMAT.format(
                 key, interface_status[key])
-        firmware = None
 
         self._device_text = ""
         devs = self._helper.inputDeviceReader.available_devices()
@@ -163,10 +178,16 @@ class AboutDialog(QtWidgets.QWidget, about_widget_class):
             self._input_readers_text = "None<br>"
 
         if self._uri:
-            firmware = FIRMWARE_FORMAT.format(
+            self._firmware = FIRMWARE_FORMAT.format(
                 self._fw_rev0,
                 self._fw_rev1,
                 "MODIFIED" if self._fw_modified else "CLEAN")
+
+            self._request_deck_data_update()
+
+        self._update_debug_info_view()
+
+    def _update_debug_info_view(self):
         self._debug_out.setHtml(
             DEBUG_INFO_FORMAT.format(
                 version=cfclient.VERSION,
@@ -180,9 +201,10 @@ class AboutDialog(QtWidgets.QWidget, about_widget_class):
                 input_devices=self._device_text,
                 input_readers=self._input_readers_text,
                 uri=self._uri,
-                firmware=firmware,
+                firmware=self._firmware,
                 imu_sensors=self._imu_sensors_text,
-                imu_sensor_tests=self._imu_sensor_test_text))
+                imu_sensor_tests=self._imu_sensor_test_text,
+                decks=self._decks_text))
 
     def _connected(self, uri):
         """Callback when Crazyflie is connected"""
@@ -216,7 +238,28 @@ class AboutDialog(QtWidgets.QWidget, about_widget_class):
         self._interface_text = ""
         self._imu_sensors_text = ""
         self._imu_sensor_test_text = ""
+        self._decks_text = ""
         self._uri = None
         self._fw_rev1 = None
         self._fw_rev0 = None
         self._fw_modified = None
+        self._firmware = None
+
+    def _request_deck_data_update(self):
+        self._decks_text = ""
+        mems = self._helper.cf.mem.get_mems(MemoryElement.TYPE_1W)
+        for mem in mems:
+            mem.update(self._cb_deck_data_updated_signal.emit)
+
+    def _deck_data_updated(self, deck_data):
+        name = 'N/A'
+        if "Board name" in deck_data.elements:
+            name = deck_data.elements["Board name"]
+
+        rev = 'N/A'
+        if "Board revision" in deck_data.elements:
+            rev = deck_data.elements["Board revision"]
+
+        self._decks_text += DECK_FORMAT.format(name, rev, deck_data.addr)
+
+        self._update_debug_info_view()

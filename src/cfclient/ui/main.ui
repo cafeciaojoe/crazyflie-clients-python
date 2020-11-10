@@ -32,14 +32,14 @@
           </property>
           <property name="minimumSize">
            <size>
-            <width>48</width>
-            <height>20</height>
+            <width>60</width>
+            <height>30</height>
            </size>
           </property>
           <property name="maximumSize">
            <size>
-            <width>48</width>
-            <height>20</height>
+            <width>60</width>
+            <height>40</height>
            </size>
           </property>
           <property name="alignment">
@@ -199,9 +199,15 @@
          </item>
          <item>
           <widget class="HexSpinBox" name="address">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
            <property name="minimumSize">
             <size>
-             <width>140</width>
+             <width>158</width>
              <height>0</height>
             </size>
            </property>
@@ -249,7 +255,7 @@
            <x>0</x>
            <y>0</y>
            <width>852</width>
-           <height>506</height>
+           <height>493</height>
           </rect>
          </property>
          <property name="sizePolicy">
@@ -301,7 +307,7 @@
      <x>0</x>
      <y>0</y>
      <width>872</width>
-     <height>20</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -337,7 +343,6 @@
     <addaction name="menuItemConnect"/>
     <addaction name="menuItemBootloader"/>
     <addaction name="_menu_cf2_config"/>
-    <addaction name="_menu_cf1_config"/>
    </widget>
    <widget class="QMenu" name="_menu_inputdevice">
     <property name="title">
@@ -347,12 +352,18 @@
     <addaction name="_menuitem_rescandevices"/>
     <addaction name="separator"/>
    </widget>
+   <widget class="QMenu" name="menuThemes">
+    <property name="title">
+     <string>Themes</string>
+    </property>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuConnect"/>
    <addaction name="_menu_inputdevice"/>
    <addaction name="menuSettings"/>
    <addaction name="menuView"/>
    <addaction name="menuHelp"/>
+   <addaction name="menuThemes"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="menuItemConnect">
@@ -481,20 +492,7 @@
     <bool>false</bool>
    </property>
    <property name="text">
-    <string>Configure 2.0</string>
-   </property>
-   <property name="menuRole">
-    <enum>QAction::NoRole</enum>
-   </property>
-  </action>
-  <action name="_menu_cf_config_2">
-   <property name="text">
-    <string>Configure 1.0</string>
-   </property>
-  </action>
-  <action name="_menu_cf1_config">
-   <property name="text">
-    <string>Configure 1.0</string>
+    <string>Configure 2.X</string>
    </property>
    <property name="menuRole">
     <enum>QAction::NoRole</enum>

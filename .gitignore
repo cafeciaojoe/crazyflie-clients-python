@@ -10,6 +10,7 @@ src/cfclient/third_party/*
 version.json
 win32install/*.exe
 win32install/cfclient.nsi
+*.snap
 
 # PC client settings
 conf/*
@@ -23,3 +24,12 @@ msvcp90.dll
 # PyCharm
 .idea/*
 .DS_Store
+
+# vscode
+.vscode/
+
+# Jykell files
+docs/.jekyll-metadata
+
+# Python venv
+venv/

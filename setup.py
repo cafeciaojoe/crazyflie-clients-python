@@ -8,26 +8,42 @@ import json
 import codecs
 import sys
 import os
+import platform
 
-if sys.argv[1] == 'build':
+if sys.argv[1] in ('build', 'bdist_msi', 'bdist_mac', 'bdist_dmg'):
     from cx_Freeze import setup, Executable  # noqa
 
     cxfreeze_options = {
         'options': {
-            'build_exe': {'includes': ['numpy.core._methods',
-                                       'numpy.lib.format',
-                                       'pyqtgraph.debug',
-                                       'pyqtgraph.ThreadsafeTimer']}
+            'build_exe': {
+                'includes': ['numpy.core._methods',
+                             'numpy.lib.format',
+                             'pyqtgraph.debug',
+                             'pyqtgraph.ThreadsafeTimer',
+                             ],
+                'include_files': [],
+                'packages': ['asyncio'],
+                'excludes': ['tkinter']
+            },
+            'bdist_mac': {
+                'iconfile': 'icon-256.icns',
+                'bundle_name': 'Crazyflie client',
+            },
         },
         'executables': [Executable("bin/cfclient", icon='bitcraze.ico')],
     }
+    if platform.system() == 'Darwin':
+        cxfreeze_options['options']['build_exe']['include_files'] = [
+                ('/usr/local/lib/libusb-1.0.0.dylib', 'libusb.dylib'),
+                ('/usr/local/lib/libSDL2-2.0.0.dylib', 'libSDL2.dylib'),
+            ]
 else:
     cxfreeze_options = {}
 # except:
 #     pass
 
-if sys.version_info < (3, 4):
-    raise "must use python 3.4 or greater"
+if sys.version_info < (3, 5):
+    raise "must use python 3.5 or greater"
 
 
 # Recover version from Git.
@@ -61,7 +77,7 @@ VERSION = get_version()
 if not VERSION and not os.path.isfile('src/cfclient/version.json'):
     sys.stderr.write("Git is required to install from source.\n" +
                      "Please clone the project with Git or use one of the\n" +
-                     "release pachages (either from pip or a binary build).\n")
+                     "release packages (either from pip or a binary build).\n")
     raise Exception("Git required.")
 
 if not VERSION:
@@ -74,9 +90,9 @@ else:
 platform_requires = []
 platform_dev_requires = []
 if sys.platform == 'win32' or sys.platform == 'darwin':
-    platform_requires = ['pysdl2']
+    platform_requires = ['pysdl2~=0.9.6']
 if sys.platform == 'win32':
-    platform_dev_requires = ['cx_freeze', 'jinja2']
+    platform_dev_requires = ['cx_freeze==5.1.1', 'jinja2==2.10.3']
 
 package_data = {
     'cfclient.ui':  relative(glob('src/cfclient/ui/*.ui')),
@@ -87,8 +103,8 @@ package_data = {
     'cfclient':  relative(glob('src/cfclient/configs/*.json'), 'configs/') +  # noqa
                  relative(glob('src/cfclient/configs/input/*.json'), 'configs/input/') +  # noqa
                  relative(glob('src/cfclient/configs/log/*.json'), 'configs/log/') +  # noqa
-                 relative(glob('src/cfclient/resources/*'), 'resources/') +
-                 relative(glob('src/cfclient/*.png')),
+                 relative(glob('src/cfclient/resources/*'), 'resources/') +  # noqa
+                 relative(glob('src/cfclient/ui/icons/*.png'), 'ui/icons/'),  # noqa
     '': ['README.md']
 }
 data_files = [
@@ -124,18 +140,24 @@ setup(
         ],
     },
 
-    install_requires=platform_requires + ['cflib>=0.1.6',
-                                          'appdirs>=1.4.0',
-                                          'pyzmq',
-                                          'pyqtgraph>=0.10',
-                                          'PyYAML'],
+    # Pyqt5 5.12 is the last version that does not cause performance problems
+    # on Windows and Mac
+    install_requires=platform_requires + ['cflib~=0.1.12',
+                                          'appdirs~=1.4.0',
+                                          'pyzmq~=19.0',
+                                          'pyqtgraph~=0.11',
+                                          'PyYAML~=5.3',
+                                          'quamash~=0.6.1',
+                                          'qtm~=2.0.2',
+                                          'vispy~=0.6.5',
+                                          'numpy~=1.19.2',
+                                          'pyqt5~=5.12.0'],
 
-    # List of dev and qt dependencies
+    # List of dev dependencies
     # You can install them by running
-    # $ pip install -e .[dev,qt5]
+    # $ pip install -e .[dev]
     extras_require={
         'dev': platform_dev_requires + [],
-        'qt5': ['pyqt5']
     },
 
     package_data=package_data,
