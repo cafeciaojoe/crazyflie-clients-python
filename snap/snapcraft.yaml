@@ -1,4 +1,5 @@
 name: cfclient
+license: GPL-3.0
 version: git
 summary: Crazyflie client
 description: |
@@ -7,6 +8,10 @@ base: core18
 confinement: strict
 icon: snap/gui/cfclient.png
 
+# Until we can use pyqt5 from apt, we are stuck to amd64 only
+architectures:
+  - build-on: amd64
+
 
 parts:
   cfclient:
@@ -14,7 +19,8 @@ parts:
     python-version: python3
     source: .
     stage-packages:
-      - python3-pyqt5
+      - libglu1-mesa
+      - libxcb-glx0
 
 apps:
   cfclient:
