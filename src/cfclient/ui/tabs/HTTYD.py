@@ -42,15 +42,14 @@ import cfclient
 from cfclient.ui.tab import Tab
 
 __author__ = 'Bitcraze AB'
-__all__ = ['ExampleTab']
+__all__ = ['HTTYD']
 
 logger = logging.getLogger(__name__)
 
-example_tab_class = uic.loadUiType(cfclient.module_path +
-                                   "/ui/tabs/exampleTab.ui")[0]
+HTTYD_tab_class = uic.loadUiType(cfclient.module_path +
+                                   "/ui/tabs/HTTYD.ui")[0]
 
-
-class ExampleTab(Tab, example_tab_class):
+class HTTYD(Tab, HTTYD_tab_class):
     """Tab for plotting logging data"""
 
     _connected_signal = pyqtSignal(str)
@@ -60,11 +59,11 @@ class ExampleTab(Tab, example_tab_class):
     _param_updated_signal = pyqtSignal(str, str)
 
     def __init__(self, tabWidget, helper, *args):
-        super(ExampleTab, self).__init__(*args)
+        super(HTTYD, self).__init__(*args)
         self.setupUi(self)
 
-        self.tabName = "Example"
-        self.menuName = "Example Tab"
+        self.tabName = "HTTYD"
+        self.menuName = "HTTYD Tab"
         self.tabWidget = tabWidget
 
         self._helper = helper
@@ -82,6 +81,10 @@ class ExampleTab(Tab, example_tab_class):
 
         self._helper.cf.disconnected.add_callback(
             self._disconnected_signal.emit)
+
+        self.label.setText('i have been clicked')
+
+
 
     def _connected(self, link_uri):
         """Callback when the Crazyflie has been connected"""
