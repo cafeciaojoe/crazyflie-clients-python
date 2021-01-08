@@ -148,6 +148,7 @@ class QualisysTab(Tab, qualisys_tab_class):
     _log_data_signal = pyqtSignal(int, object, object)
     _log_error_signal = pyqtSignal(object, str)
     _param_updated_signal = pyqtSignal(str, str)
+
     _imu_data_signal = pyqtSignal(int, object, object)
 
     _flight_path_select_row = pyqtSignal(int)
