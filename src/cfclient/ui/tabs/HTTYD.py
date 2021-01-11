@@ -26,13 +26,9 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 #  02110-1301, USA.
 
-"""
-An example template for a tab in the Crazyflie Client. It comes pre-configured
-with the necessary QT Signals to wrap Crazyflie API callbacks and also
-connects the connected/disconnected callbacks.
-"""
-
 import logging
+import math
+import time
 from enum import Enum
 
 from PyQt5 import uic
@@ -43,6 +39,10 @@ from PyQt5.QtWidgets import QMessageBox
 
 import cfclient
 from cfclient.ui.tab import Tab
+from cflib.crazyflie.log import LogConfig
+from cflib.crazyflie.syncLogger import SyncLogger
+
+import threading
 
 __author__ = 'Bitcraze AB'
 __all__ = ['HTTYD']
@@ -85,8 +85,6 @@ class FlightModeStates(Enum):
     RECORD = 8
 
 class HTTYD(Tab, HTTYD_tab_class):
-    """Tab for plotting logging data"""
-
     """Define some signals that will emit some string,
     signals a are usually sent by buttons
     these signals need to be connected to a slot/slots. 
@@ -110,6 +108,7 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         self._machine = QStateMachine()
         self._setup_states()
+        self._event = threading.Event()
 
         self.tabName = "HTTYD"
         self.menuName = "HTTYD Tab"
@@ -127,6 +126,15 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.flying_enabled = False
         self.switch_flight_mode(FlightModeStates.DISCONNECTED)
 
+        # The position and rotation of the cf and wand obtained by the
+        # lighthouse tracking, if it cant be tracked the position becomes Nan
+        self.cf_pos = Position(0, 0, 0)
+        self.wand_pos = Position(0, 0, 0)
+
+        # The regular cf_pos can a times due to lost tracing become Nan,
+        # this the latest known valid cf position
+        self.valid_cf_pos = Position(0, 0, 0)
+
         # Always wrap callbacks from Crazyflie API though QT Signal/Slots
         # to avoid manipulating the UI when rendering it
         self._connected_signal.connect(self._connected)
@@ -140,11 +148,9 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.cfStatusChanged.connect(self._update_cf_status)
 
         # Connect the Crazyflie API callbacks to the signals
-        self._helper.cf.connected.add_callback(
-            self._connected_signal.emit)
+        self._helper.cf.connected.add_callback(self._connected_signal.emit)
 
-        self._helper.cf.disconnected.add_callback(
-            self._disconnected_signal.emit)
+        self._helper.cf.disconnected.add_callback(self._disconnected_signal.emit)
 
         # Connect the UI elements
         self.liftButton.clicked.connect(self.set_lift_mode)
@@ -231,17 +237,39 @@ class HTTYD(Tab, HTTYD_tab_class):
         self._machine.setInitialState(parent_state)
         self._machine.start()
 
+    """
+    update flight status is called when;
+    - the CF is connected or disconnected
+    - the QTM (or in our case the poseNet) is connected or disconnected
+    it ensure that they are both connected before starting the flight controller. 
+    """
     def _update_flight_status(self):
+        """
+        assign old state to new state
+        """
         prev_flying_enabled = self.flying_enabled
-        self.flying_enabled = self._cf is not None
+        """
+        if there is a cf instance and a qtm connection instance
+        (even if they are not connected)
+        then flying is enabled
+        """
+        self.flying_enabled = (self._cf is not None)
                               # and \
             # self._qtm_connection is not None
 
+        """
+        if the flying enabled is not the same as prev_flying enabled" 
+        an additional check for security...?
+        """
         if not prev_flying_enabled and self.flying_enabled:
             self.switch_flight_mode(FlightModeStates.GROUNDED)
-            # t = threading.Thread(target=self.flight_controller)
-            # t.start()
+            t = threading.Thread(target=self.flight_controller)
+            t.start()
 
+        """
+        if either the CF or QTM/Posenet Drops out. 
+        flight mode is disconnect
+        """
         if prev_flying_enabled and not self.flying_enabled:
             self.switch_flight_mode(FlightModeStates.DISCONNECTED)
 
@@ -323,45 +351,324 @@ class HTTYD(Tab, HTTYD_tab_class):
                           "Error when using log config"
                           " [{0}]: {1}".format(log_conf.name, msg))
 
-    def _flight_mode_disconnected_entered(self):
-        # self._event.set()
-        print('flight_mode_disconnected_entered')
-        pass
-
-    def _flight_mode_hovering_entered(self):
-        # self.current_goal_pos = self.valid_cf_pos
-        # logger.info('Hovering at: {}'.format(
-        #     self.current_goal_pos))
-        # self._event.set()
-        print('flight_mode_hovering_entered')
-        pass
-
-    def _flight_mode_grounded_entered(self):
-        # self._event.set()
-        print('flight_mode_grounded_entered')
-        pass
+    def _flight_mode_land_entered(self):
+        self.current_goal_pos = self.valid_cf_pos
+        logger.info('Trying to land at: x: {} y: {}'.format(
+            self.current_goal_pos.x, self.current_goal_pos.y))
+        self.land_rate = 1
+        print('flight_mode_land_entered')
+        self._event.set()
 
     def _flight_mode_follow_entered(self):
         # self.last_valid_wand_pos = Position(0, 0, 1)
-        # self._event.set()
-        pass
+        self._event.set()
 
     def _flight_mode_lift_entered(self):
-        # self.current_goal_pos = self.valid_cf_pos
-        # logger.info('Trying to lift at: {}'.format(
-        #     self.current_goal_pos))
-        # self._event.set()
-        print('flight_mode_lift_entered')
-        pass
+        self.current_goal_pos = self.valid_cf_pos
+        logger.info('Trying to lift at: {}'.format(
+            self.current_goal_pos))
+        self._event.set()
 
-    def _flight_mode_land_entered(self):
-        # self.current_goal_pos = self.valid_cf_pos
-        # logger.info('Trying to land at: x: {} y: {}'.format(
-        #     self.current_goal_pos.x, self.current_goal_pos.y))
-        # self.land_rate = 1
-        # self._event.set()
-        print('flight_mode_land_entered')
-        pass
+    def _flight_mode_hovering_entered(self):
+        self.current_goal_pos = self.valid_cf_pos
+        logger.info('Hovering at: {}'.format(
+            self.current_goal_pos))
+        self._event.set()
+
+    def _flight_mode_grounded_entered(self):
+        self._event.set()
+        print('flight_mode_grounded_entered')
+
+    def _flight_mode_disconnected_entered(self):
+        self._event.set()
+        print('flight_mode_disconnected_entered')
+
+    def flight_controller(self):
+        try:
+            logger.info('Starting flight controller thread')
+            self._cf.param.set_value('stabilizer.estimator', '2')
+            self.reset_estimator(self._cf)
+
+            self._cf.param.set_value('flightmode.posSet', '1')
+
+            time.sleep(0.1)
+
+            # The threshold for how many frames without tracking
+            # is allowed before the cf's motors are stopped
+            lost_tracking_threshold = 100
+            frames_without_tracking = 0
+            position_hold_timer = 0
+            self.circle_angle = 0.0
+
+            # The main flight control loop, the behaviour
+            # is controlled by the state of "FlightMode"
+            while self.flying_enabled:
+
+                # Check that the position is valid and store it
+                if self.cf_pos.is_valid():
+                    self.valid_cf_pos = self.cf_pos
+                    frames_without_tracking = 0
+                # else:
+                #     # if it isn't, count number of frames
+                #     frames_without_tracking += 1
+                #
+                #     if frames_without_tracking > lost_tracking_threshold:
+                #         self.switch_flight_mode(FlightModeStates.GROUNDED)
+                #         self.status = "Tracking lost, turning off motors"
+                #         logger.info(self.status)
+                #
+                # # If the cf is upside down, kill the motors
+                # if self.flight_mode != FlightModeStates.GROUNDED and (
+                #         self.valid_cf_pos.roll > 120
+                #         or self.valid_cf_pos.roll < -120):
+                #     self.switch_flight_mode(FlightModeStates.GROUNDED)
+                #     self.status = "Status: Upside down, turning off motors"
+                #     logger.info(self.status)
+
+                # Switch on the FlightModeState and take actions accordingly
+                # Wait so that any on state change actions are completed
+                self._event.wait()
+
+                if self.flight_mode == FlightModeStates.LAND:
+
+                    self.send_setpoint(
+                        Position(
+                            self.current_goal_pos.x,
+                            self.current_goal_pos.y,
+                            (self.current_goal_pos.z / self.land_rate),
+                            yaw=0))
+                    # Check if the cf has reached the  position,
+                    # if it has set a new position
+
+                    if self.valid_cf_pos.distance_to(
+                            Position(self.current_goal_pos.x,
+                                     self.current_goal_pos.y,
+                                     self.current_goal_pos.z / self.land_rate
+                                     )) < self.path_pos_threshold:
+                        self.land_rate *= 1.1
+
+                    if self.land_rate > 1000:
+                        self.send_setpoint(Position(0, 0, 0))
+                        if self.land_for_recording:
+                            # Return the control to the recording mode
+                            # after landing
+                            mode = FlightModeStates.RECORD
+                            self.land_for_recording = False
+                        else:
+                            # Regular landing
+                            mode = FlightModeStates.GROUNDED
+                        self.switch_flight_mode(mode)
+
+                elif self.flight_mode == FlightModeStates.PATH:
+
+                    self.send_setpoint(self.current_goal_pos)
+                    # Check if the cf has reached the goal position,
+                    # if it has set a new goal position
+                    if self.valid_cf_pos.distance_to(
+                            self.current_goal_pos) < self.path_pos_threshold:
+
+                        if position_hold_timer > self.position_hold_timelimit:
+
+                            current = self.flight_paths[
+                                self.pathSelector.currentIndex()]
+
+                            self.path_index += 1
+                            if self.path_index == len(current):
+                                self.path_index = 1
+                            position_hold_timer = 0
+
+                            self.current_goal_pos = Position(
+                                current[self.path_index][0],
+                                current[self.path_index][1],
+                                current[self.path_index][2],
+                                yaw=current[self.path_index][3])
+
+                            logger.info('Setting position {}'.format(
+                                self.current_goal_pos))
+                            self._flight_path_select_row.emit(
+                                self.path_index - 1)
+                        elif position_hold_timer == 0:
+
+                            time_of_pos_reach = time.time()
+                            # Add som time just to get going,
+                            # it will be overwritten in the next step.
+                            # Setting it higher than the limit
+                            # will break the code.
+                            position_hold_timer = 0.0001
+                        else:
+                            position_hold_timer = time.time(
+                            ) - time_of_pos_reach
+
+                elif self.flight_mode == FlightModeStates.CIRCLE:
+                    self.send_setpoint(self.current_goal_pos)
+
+                    # Check if the cf has reached the goal position,
+                    # if it has set a new goal position
+                    if self.valid_cf_pos.distance_to(
+                            self.current_goal_pos) < self.circle_pos_threshold:
+
+                        if position_hold_timer >= self.position_hold_timelimit:
+
+                            position_hold_timer = 0
+
+                            # increment the angle
+                            self.circle_angle = ((self.circle_angle +
+                                                  self.circle_resolution)
+                                                 % 360)
+
+                            # Calculate the next position in
+                            # the circle to fly to
+                            self.current_goal_pos = Position(
+                                round(
+                                    math.cos(math.radians(self.circle_angle)),
+                                    4) * self.circle_radius,
+                                round(
+                                    math.sin(math.radians(self.circle_angle)),
+                                    4) * self.circle_radius,
+                                self.circle_height,
+                                yaw=self.circle_angle)
+
+                            logger.info('Setting position {}'.format(
+                                self.current_goal_pos))
+
+                        elif position_hold_timer == 0:
+
+                            time_of_pos_reach = time.time()
+                            # Add som time just to get going, it will be
+                            # overwritten in the next step.
+                            # Setting it higher than the imit will
+                            # break the code.
+                            position_hold_timer = 0.0001
+                        else:
+                            position_hold_timer = time.time(
+                            ) - time_of_pos_reach
+
+                elif self.flight_mode == FlightModeStates.FOLLOW:
+
+                    if self.wand_pos.is_valid():
+                        self.last_valid_wand_pos = self.wand_pos
+
+                        # Fit the angle of the wand in the interval 0-4
+                        self.length_from_wand = (2 * (
+                            (self.wand_pos.roll + 90) / 180) - 1) + 2
+                        self.send_setpoint(
+                            Position(
+                                self.wand_pos.x + round(
+                                    math.cos(math.radians(self.wand_pos.yaw)),
+                                    4) * self.length_from_wand,
+                                self.wand_pos.y + round(
+                                    math.sin(math.radians(self.wand_pos.yaw)),
+                                    4) * self.length_from_wand,
+                                ((self.wand_pos.z + round(
+                                    math.sin(
+                                        math.radians(self.wand_pos.pitch)), 4)
+                                  * self.length_from_wand) if
+                                 ((self.wand_pos.z + round(
+                                     math.sin(
+                                         math.radians(self.wand_pos.pitch)), 4)
+                                   * self.length_from_wand) > 0) else 0)))
+                    else:
+                        self.length_from_wand = (2 * (
+                            (self.last_valid_wand_pos.roll + 90) / 180) -
+                                                 1) + 2
+                        self.send_setpoint(
+                            Position(
+                                self.last_valid_wand_pos.x + round(
+                                    math.cos(
+                                        math.radians(
+                                            self.last_valid_wand_pos.yaw)),
+                                    4) * self.length_from_wand,
+                                self.last_valid_wand_pos.y + round(
+                                    math.sin(
+                                        math.radians(
+                                            self.last_valid_wand_pos.yaw)),
+                                    4) * self.length_from_wand,
+                                int(self.last_valid_wand_pos.z + round(
+                                    math.sin(
+                                        math.radians(self.last_valid_wand_pos.
+                                                     pitch)), 4) *
+                                    self.length_from_wand)))
+
+                elif self.flight_mode == FlightModeStates.LIFT:
+
+                    self.send_setpoint(
+                        Position(self.current_goal_pos.x,
+                                 self.current_goal_pos.y, 1))
+
+                    if self.valid_cf_pos.distance_to(
+                            Position(self.current_goal_pos.x,
+                                     self.current_goal_pos.y, 1)) < 0.05:
+                        # Wait for hte crazyflie to reach the goal
+                        self.switch_flight_mode(FlightModeStates.HOVERING)
+
+                elif self.flight_mode == FlightModeStates.HOVERING:
+                    self.send_setpoint(self.current_goal_pos)
+
+                elif self.flight_mode == FlightModeStates.RECORD:
+
+                    if self.valid_cf_pos.z > 1.0 and not self.recording:
+                        # Start recording when the cf is lifted
+                        self.recording = True
+                        # Start the timer thread
+                        self.save_current_position()
+                        # Gui
+                        self.status = "Recording Flightpath"
+                        logger.info(self.status)
+
+                    elif self.valid_cf_pos.z < 0.03 and self.recording:
+                        # Stop the recording when the cf is put on
+                        # the ground again
+                        logger.info("Recording stopped")
+                        self.recording = False
+
+                        # Remove the last bit (1s) of the recording,
+                        # containing setting the cf down
+                        for self.path_index in range(20):
+                            self.new_path.pop()
+
+                        # Add the new path to list and Gui
+                        now = datetime.datetime.fromtimestamp(time.time())
+
+                        new_name = ("Recording {}/{}/{} {}:{}".format(
+                            now.year - 2000, now.month
+                            if now.month > 9 else "0{}".format(now.month),
+                            now.day if now.day > 9 else "0{}".format(now.day),
+                            now.hour if now.hour > 9 else "0{}".format(
+                                now.hour), now.minute
+                            if now.minute > 9 else "0{}".format(now.minute)))
+
+                        self.new_path.insert(0, new_name)
+                        self.flight_paths.append(self.new_path)
+                        self._path_selector_add_item.emit(new_name)
+
+                        # Select the new path
+                        self._path_selector_set_index.emit(
+                            len(self.flight_paths) - 1)
+                        self.path_changed()
+                        Config().set("flight_paths", self.flight_paths)
+
+                        # Wait while the operator moves away
+                        self.status = "Replay in 3s"
+                        time.sleep(1)
+                        self.status = "Replay in 2s"
+                        time.sleep(1)
+                        self.status = "Replay in 1s"
+                        time.sleep(1)
+                        # Switch to path mode and replay the recording
+                        self.switch_flight_mode(FlightModeStates.PATH)
+
+                elif self.flight_mode == FlightModeStates.GROUNDED:
+                    pass  # If gounded, the control is switched back to gamepad
+
+                time.sleep(0.001)
+
+        except Exception as err:
+            logger.error(err)
+            self.cfStatus = str(err)
+
+        logger.info('Terminating flight controller thread')
+
+
 
     """change the state of the state machine (?)"""
     def set_lift_mode(self):
@@ -383,6 +690,69 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.switch_flight_mode(FlightModeStates.GROUNDED)
         logger.info('Stop button pressed, kill engines')
 
+    def wait_for_position_estimator(self, cf):
+        logger.info('Waiting for estimator to find stable position...')
+
+        self.cfStatus = (
+            'Waiting for estimator to find stable position... '
+            '(QTM needs to be connected and providing data)'
+        )
+
+        log_config = LogConfig(name='Kalman Variance', period_in_ms=500)
+        log_config.add_variable('kalman.varPX', 'float')
+        log_config.add_variable('kalman.varPY', 'float')
+        log_config.add_variable('kalman.varPZ', 'float')
+
+        var_y_history = [1000] * 10
+        var_x_history = [1000] * 10
+        var_z_history = [1000] * 10
+
+        threshold = 0.001
+
+        with SyncLogger(cf, log_config) as log:
+            for log_entry in log:
+                data = log_entry[1]
+
+                var_x_history.append(data['kalman.varPX'])
+                var_x_history.pop(0)
+                var_y_history.append(data['kalman.varPY'])
+                var_y_history.pop(0)
+                var_z_history.append(data['kalman.varPZ'])
+                var_z_history.pop(0)
+
+                min_x = min(var_x_history)
+                max_x = max(var_x_history)
+                min_y = min(var_y_history)
+                max_y = max(var_y_history)
+                min_z = min(var_z_history)
+                max_z = max(var_z_history)
+
+                # print("{} {} {}".
+                # format(max_x - min_x, max_y - min_y, max_z - min_z))
+
+                if (max_x - min_x) < threshold and (
+                        max_y - min_y) < threshold and (
+                        max_z - min_z) < threshold:
+                    logger.info("Position found with error in, x: {}, y: {}, "
+                                "z: {}".format(max_x - min_x,
+                                               max_y - min_y,
+                                               max_z - min_z))
+
+                    self.cfStatus = ": connected"
+
+                    self.switch_flight_mode(FlightModeStates.GROUNDED)
+
+                    break
+
+    def reset_estimator(self, cf):
+        # Reset the kalman filter
+
+        cf.param.set_value('kalman.resetEstimation', '1')
+        time.sleep(0.1)
+        cf.param.set_value('kalman.resetEstimation', '0')
+
+        self.wait_for_position_estimator(cf)
+
     def switch_flight_mode(self, mode):
         # Handles the behaviour of switching between flight modes
         self.flight_mode = mode
@@ -398,11 +768,40 @@ class HTTYD(Tab, HTTYD_tab_class):
         else:
             self._helper.mainUI.disable_input(True)
 
-        # self._event.clear()
+        self._event.clear()
         # # Threadsafe call
         self._machine.postEvent(FlightModeEvent(mode))
 
         logger.info('Switching Flight Mode to: %s', mode)
+
+    def send_setpoint(self, pos):
+        # Wraps the send command to the crazyflie
+        if self._cf is not None:
+            self._cf.commander.send_position_setpoint(pos.x, pos.y, pos.z, 0.0)
+
+class Position:
+    def __init__(self, x, y, z, roll=0.0, pitch=0.0, yaw=0.0):
+        self.x = x
+        self.y = y
+        self.z = z
+        self.roll = roll
+        self.pitch = pitch
+        self.yaw = yaw
+
+    def distance_to(self, other_point):
+        return math.sqrt(
+            math.pow(self.x - other_point.x, 2) +
+            math.pow(self.y - other_point.y, 2) +
+            math.pow(self.z - other_point.z, 2))
+
+    def is_valid(self):
+        # Checking if the respective values are nan
+        # if any of them were nan then the function returs false
+        return self.x == self.x and self.y == self.y and self.z == self.z
+
+    def __str__(self):
+        return "x: {} y: {} z: {} Roll: {} Pitch: {} Yaw: {}".format(
+            self.x, self.y, self.z, self.roll, self.pitch, self.yaw)
 
 
 

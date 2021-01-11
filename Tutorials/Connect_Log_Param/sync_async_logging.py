@@ -100,11 +100,11 @@ if __name__ == '__main__':
     """Here you will add the log variables you would like to read out. If you are unsure how your variable is called,
      this can be checked by connecting to Crazyflie to the cfclient and look at the log TOC tab. If the variables don’t
     match, you get a KeyError (more on that later.)"""
-    lg_stab = LogConfig(name='Stabilizer', period_in_ms=10)
-    lg_stab.add_variable('stabilizer.roll', 'float')
-    lg_stab.add_variable('stabilizer.pitch', 'float')
-    lg_stab.add_variable('stabilizer.yaw', 'float')
-    # lg_stab.add_variable('not.real', 'float')
+    lg_stab = LogConfig(name='lighthouse', period_in_ms=100)
+    lg_stab.add_variable('lighthouse.x', 'float')
+    lg_stab.add_variable('lighthouse.y', 'float')
+    lg_stab.add_variable('lighthouse.z', 'float')
+    print(lg_stab.add_variable('lighthouse.validAngles', 'uint8_t'))
 
     group = "stabilizer"
     name = "estimator"
@@ -118,7 +118,7 @@ if __name__ == '__main__':
 
         # simple_log(scf, lg_stab)
 
-        # simple_log_async(scf, lg_stab)
+        simple_log_async(scf, lg_stab)
 
-        """calling the async param read/write function on the stabilizer/estimator funciton"""
-        simple_param_async(scf, group, name)
+        # """calling the async param read/write function on the stabilizer/estimator funciton"""
+        # simple_param_async(scf, group, name)
