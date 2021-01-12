@@ -63,7 +63,9 @@ def simple_log_async(scf, logconf):
 
     # """Then the log configuration would need to be started manually, and then stopped after a few seconds:"""
     logconf.start()
-    time.sleep(5)
+    while True:
+        a = 1
+
     logconf.stop()
 
 def simple_log(scf, logconf):
@@ -83,7 +85,7 @@ def simple_log(scf, logconf):
 
             print('[%d][%s]: %s' % (timestamp, logconf_name, data))
 
-            break
+            # break
 
 
 def simple_connect():
@@ -101,10 +103,10 @@ if __name__ == '__main__':
      this can be checked by connecting to Crazyflie to the cfclient and look at the log TOC tab. If the variables don’t
     match, you get a KeyError (more on that later.)"""
     lg_stab = LogConfig(name='lighthouse', period_in_ms=100)
-    lg_stab.add_variable('lighthouse.x', 'float')
-    lg_stab.add_variable('lighthouse.y', 'float')
-    lg_stab.add_variable('lighthouse.z', 'float')
-    print(lg_stab.add_variable('lighthouse.validAngles', 'uint8_t'))
+    lg_stab.add_variable('lighthouse.rawAngle0x', 'float')
+    lg_stab.add_variable('lighthouse.rawAngle0y', 'float')
+    lg_stab.add_variable('lighthouse.rawAngle1x', 'float')
+    lg_stab.add_variable('lighthouse.rawAngle1y', 'float')
 
     group = "stabilizer"
     name = "estimator"
