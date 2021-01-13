@@ -390,13 +390,13 @@ class HTTYD(Tab, HTTYD_tab_class):
     def flight_logger(self):
         logger.info('Starting flight logger thread')
 
-        log_angle = LogConfig(name='lighthouse', period_in_ms=10)
+        log_angle = LogConfig(name='lighthouse', period_in_ms=1000)
         log_angle.add_variable('lighthouse.rawAngle0x', 'float')
         log_angle.add_variable('lighthouse.rawAngle0y', 'float')
         log_angle.add_variable('lighthouse.rawAngle1x', 'float')
         log_angle.add_variable('lighthouse.rawAngle1y', 'float')
 
-        log_position = LogConfig(name='Position', period_in_ms=10)
+        log_position = LogConfig(name='Position', period_in_ms=1000)
         log_position.add_variable('stateEstimate.x', 'float')
         log_position.add_variable('stateEstimate.y', 'float')
         log_position.add_variable('stateEstimate.z', 'float')
@@ -409,32 +409,37 @@ class HTTYD(Tab, HTTYD_tab_class):
         state_estimate = [0, 0, 0]
 
         with SyncLogger(self._cf, [log_angle,log_position]) as log:
-            for log_entry_1 in log:
-                for log_entry_2 in log:
-                    data_1 = log_entry_1[1]
-                    data_2 = log_entry_2[1]
-
-                    print(data_1, data_2)
-
+            for log_entry in log:
+                if 'lighthouse.rawAngle0x' in log_entry[1]:
+                    data_1 = log_entry[1]
+                    print(rawAngle0x)
                     rawAngle0x.append(data_1['lighthouse.rawAngle0x'])
                     rawAngle0x.pop(0)
-                    rawAngle0y.append(data_1['lighthouse.rawAngle0y'])
-                    rawAngle0y.pop(0)
-                    rawAngle1x.append(data_1['lighthouse.rawAngle1x'])
-                    rawAngle1x.pop(0)
-                    rawAngle1y.append(data_1['lighthouse.rawAngle1y'])
-                    rawAngle1y.pop(0)
+                    print(rawAngle0x)
+                    # rawAngle0y.append(data_1['lighthouse.rawAngle0y'])
+                    # rawAngle0y.pop(0)
+                    # rawAngle1x.append(data_1['lighthouse.rawAngle1x'])
+                    # rawAngle1x.pop(0)
+                    # rawAngle1y.append(data_1['lighthouse.rawAngle1y'])
+                    # rawAngle1y.pop(0)
 
+                    # if rawAngle0x[0] == rawAngle0x[1] and rawAngle0y[0] == rawAngle0y[1] and rawAngle1x[0] == \
+                    #         rawAngle1x[1] and rawAngle1y[0] == rawAngle1y[1]:
+                    if rawAngle0x[0] == rawAngle0x[1]:
+                        print(rawAngle0x[0], rawAngle0x[1])
+                        self.cf_pos = Position(float('nan'), float('nan'), float('nan'))
+                        print(self.cf_pos.x, self.cf_pos.y, self.cf_pos.z)
+
+                elif 'stateEstimate.x' in log_entry[1]:
+                    # print('updating state estimate')
+                    data_2 = log_entry[1]
                     state_estimate[0] = data_2['stateEstimate.x']
                     state_estimate[1] = data_2['stateEstimate.y']
                     state_estimate[2] = data_2['stateEstimate.z']
-
-                    if rawAngle0x[0] == rawAngle0x[1] and rawAngle0y[0] == rawAngle0y[1] and rawAngle1x[0] == rawAngle1x[1] and rawAngle1y[0] == rawAngle1y[1]:
-                        self.cf_pos = Position(float('nan'), float('nan'), float('nan'))
-                        # print(self.cf_pos)
-                    else:
-                        self.cf_pos = Position(state_estimate[0], state_estimate[1], state_estimate[2])
-                        # print(self.cf_pos)
+                    self.cf_pos = Position(state_estimate[0], state_estimate[1], state_estimate[2])
+                # else:
+                #     print('unknown log_entry {}'.format(log_entry[1]))
+                #     raise Exception
 
         # except Exception as err:
         #     logger.error(err)
@@ -464,14 +469,16 @@ class HTTYD(Tab, HTTYD_tab_class):
             # The main flight control loop, the behaviour
             # is controlled by the state of "FlightMode"
             while self.flying_enabled:
-
+                print('start of the main control loop')
                 # Check that the position is valid and store it
                 if self.cf_pos.is_valid():
                     self.valid_cf_pos = self.cf_pos
+                    print('valid cf pos is {}'.format(self.valid_cf_pos))
                     frames_without_tracking = 0
                 else:
                     # if it isn't, count number of frames
                     frames_without_tracking += 1
+                    print('frames without tracking {}'.format(frames_without_tracking))
 
                     if frames_without_tracking > lost_tracking_threshold:
                         self.switch_flight_mode(FlightModeStates.GROUNDED)
@@ -857,6 +864,7 @@ class Position:
     def is_valid(self):
         # Checking if the respective values are nan
         # if any of them were nan then the function returs false
+        print('is valid has run')
         return self.x == self.x and self.y == self.y and self.z == self.z
 
     def __str__(self):
