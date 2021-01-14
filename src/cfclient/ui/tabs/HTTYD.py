@@ -127,6 +127,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         # initial flight mode
         self.flying_enabled = False
         self.switch_flight_mode(FlightModeStates.DISCONNECTED)
+        self.path_pos_threshold = 0.2
 
         # The position and rotation of the cf and wand obtained by the
         # lighthouse tracking, if it cant be tracked the position becomes Nan
@@ -185,7 +186,7 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         # GROUNDED
         grounded = QState(parent_state)
-        grounded.assignProperty(self, "status", "Landed")
+        grounded.assignProperty(self, "status", "Grounded")
         grounded.assignProperty(self.followButton, "text", "Follow Mode")
         grounded.assignProperty(self.emergencyButton, "enabled", True)
         grounded.assignProperty(self.liftButton, "enabled", True)
@@ -412,35 +413,32 @@ class HTTYD(Tab, HTTYD_tab_class):
         with SyncLogger(self._cf, [log_angle,log_position]) as log:
             for log_entry in log:
                 if 'lighthouse.rawAngle0x' in log_entry[1]:
-
                     data_1 = log_entry[1]
                     rawAngle0x.append(data_1['lighthouse.rawAngle0x'])
                     rawAngle0x.pop(0)
-                    # print('updating raw angles to {}'.format(rawAngle0x))
-                    #
                     # rawAngle0y.append(data_1['lighthouse.rawAngle0y'])
                     # rawAngle0y.pop(0)
-                    # rawAngle1x.append(data_1['lighthouse.rawAngle1x'])
-                    # rawAngle1x.pop(0)
+                    rawAngle1x.append(data_1['lighthouse.rawAngle1x'])
+                    rawAngle1x.pop(0)
                     # rawAngle1y.append(data_1['lighthouse.rawAngle1y'])
                     # rawAngle1y.pop(0)
 
                     # if rawAngle0x[0] == rawAngle0x[1] and rawAngle0y[0] == rawAngle0y[1] and rawAngle1x[0] == \
                     #         rawAngle1x[1] and rawAngle1y[0] == rawAngle1y[1]:
-                    if rawAngle0x[0] == rawAngle0x[1]:
+                    if rawAngle0x[0] == rawAngle0x[1] and rawAngle1x[0] == rawAngle1x[1]:
                         self.cf_pos = Position(float('nan'), float('nan'), float('nan'))
-                        print(self.cf_pos.x, self.cf_pos.y, self.cf_pos.z)
+                        # print(self.cf_pos.x, self.cf_pos.y, self.cf_pos.z)
 
                 if 'stateEstimate.x' in log_entry[1]:
                     # if rawAngle0x[0] != rawAngle0x[1] and rawAngle0y[0] != rawAngle0y[1] and rawAngle1x[0] != \
                     #         rawAngle1x[1] and rawAngle1y[0] != rawAngle1y[1]:
-                    if rawAngle0x[0] != rawAngle0x[1]:
+                    if rawAngle0x[0] != rawAngle0x[1] or rawAngle1x[0] != rawAngle1x[1]:
                         data_2 = log_entry[1]
                         state_estimate[0] = data_2['stateEstimate.x']
                         state_estimate[1] = data_2['stateEstimate.y']
                         state_estimate[2] = data_2['stateEstimate.z']
                         self.cf_pos = Position(state_estimate[0], state_estimate[1], state_estimate[2])
-                        print('updating state estimate to {}'.format(self.cf_pos))
+                        # print('updating state estimate to {}'.format(self.cf_pos))
                 # else:
                 #     print('unknown log_entry {}'.format(log_entry[1]))
                 #     raise Exception
@@ -483,7 +481,7 @@ class HTTYD(Tab, HTTYD_tab_class):
                 else:
                     # if it isn't, count number of frames
                     frames_without_tracking += 1
-                    print('frames without tracking {}'.format(frames_without_tracking))
+                    # print('frames without tracking {}'.format(frames_without_tracking))
 
                     if frames_without_tracking > lost_tracking_threshold:
                         self.switch_flight_mode(FlightModeStates.GROUNDED)
@@ -523,14 +521,15 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                     if self.land_rate > 1000:
                         self.send_setpoint(Position(0, 0, 0))
-                        if self.land_for_recording:
-                            # Return the control to the recording mode
-                            # after landing
-                            mode = FlightModeStates.RECORD
-                            self.land_for_recording = False
-                        else:
-                            # Regular landing
-                            mode = FlightModeStates.GROUNDED
+                        # if self.land_for_recording:
+                        #     # Return the control to the recording mode
+                        #     # after landing
+                        #     mode = FlightModeStates.RECORD
+                        #     self.land_for_recording = False
+                        # else:
+                        #     # Regular landing
+                        #     mode = FlightModeStates.GROUNDED
+                        mode = FlightModeStates.GROUNDED
                         self.switch_flight_mode(mode)
 
                 elif self.flight_mode == FlightModeStates.PATH:
@@ -671,9 +670,13 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                     if self.valid_cf_pos.distance_to(
                             Position(self.current_goal_pos.x,
-                                     self.current_goal_pos.y, 1)) < 0.05:
+                                     self.current_goal_pos.y, 1)) < 0.17:
                         # Wait for hte crazyflie to reach the goal
                         self.switch_flight_mode(FlightModeStates.HOVERING)
+                    else:
+                        print(self.valid_cf_pos.distance_to(
+                            Position(self.current_goal_pos.x,
+                                     self.current_goal_pos.y, 1)))
 
                 elif self.flight_mode == FlightModeStates.HOVERING:
                     self.send_setpoint(self.current_goal_pos)
@@ -765,7 +768,7 @@ class HTTYD(Tab, HTTYD_tab_class):
             self.switch_flight_mode(FlightModeStates.FOLLOW)
 
     def set_kill_engine(self):
-        self.send_setpoint(Position(0, 0, 0))
+        # self.send_setpoint(Position(0, 0, 0))
         self.switch_flight_mode(FlightModeStates.GROUNDED)
         logger.info('Stop button pressed, kill engines')
 
