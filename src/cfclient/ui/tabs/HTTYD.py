@@ -116,9 +116,13 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.menuName = "HTTYD Tab"
         self.tabWidget = tabWidget
 
-        self._setup_states()
-
+        #  CF instances.
         self._helper = helper
+        self._cf_L = None
+        self._cf_R = None
+
+        self.uri_L = 'radio://0/80/2M/E7E7E7E7ED'
+        self.uri_R = 'radio://0/80/2M/A0A0A0A0AA'
 
         # assign the label to the _cf_status_ string
         self._cf_status = self.cfStatusLabel.text()
@@ -131,8 +135,14 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         # The position and rotation of the cf and wand obtained by the
         # lighthouse tracking, if it cant be tracked the position becomes Nan
+        # cf_pos_dict is what is updated by the three flight logger threads.
+        # they need to be unpacked at the top of the flight controller loop
+        self.cf_pos_dict = {'cf_pos':Position(0, 0, 0), 'cf_pos_L':Position(0,.5,0),
+                            'cf_pos_R':Position(0,-.5,0)}
         self.cf_pos = Position(0, 0, 0)
-        self.wand_pos = Position(0, 0, 0)
+        self.cf_pos_L = Position(0, .5, 0)
+        self.cf_pos_R = Position(0, -.5, 0)
+
 
         # The regular cf_pos can a times due to lost tracing become Nan,
         # this the latest known valid cf position
@@ -256,9 +266,9 @@ class HTTYD(Tab, HTTYD_tab_class):
         (even if they are not connected)
         then flying is enabled
         """
-        self.flying_enabled = (self._cf is not None)
-                              # and \
-            # self._qtm_connection is not None
+        self.flying_enabled = (self._cf is not None
+                               and self._cf_R is not None
+                               and self._cf_L is not None)
 
         """
         if the flying enabled is not the same as prev_flying enabled" 
@@ -267,10 +277,16 @@ class HTTYD(Tab, HTTYD_tab_class):
         if not prev_flying_enabled and self.flying_enabled:
             self.switch_flight_mode(FlightModeStates.GROUNDED)
             t1 = threading.Thread(target=self.flight_controller)
-            t2 = threading.Thread(target=self.flight_logger)
+            t2 = threading.Thread(target=self.flight_logger, args = (self._cf,None,'cf_pos'))
+            t3 = threading.Thread(target=self.flight_logger, args=(self._cf_L, self.uri_L, 'cf_pos_L'))
+            t4 = threading.Thread(target=self.flight_logger, args=(self._cf_R, self.uri_R, 'cf_pos_R'))
 
             t1.start()
             t2.start()
+            t3.start()
+            t4.start()
+
+
 
         """
         if either the CF or QTM/Posenet Drops out. 
@@ -325,6 +341,8 @@ class HTTYD(Tab, HTTYD_tab_class):
         """Callback when the Crazyflie has been connected"""
 
         self._cf = self._helper.cf
+        self._cf_R = 'connected'
+        self._cf_L = 'connected'
         self._update_flight_status()
 
         logger.debug("Crazyflie connected to {}".format(link_uri))
@@ -338,6 +356,8 @@ class HTTYD(Tab, HTTYD_tab_class):
         logger.info("Crazyflie disconnected from {}".format(link_uri))
         self.cfStatus = ': not connected'
         self._cf = None
+        self._cf_R = None
+        self._cf_L = None
         self._update_flight_status()
 
     def _param_updated(self, name, value):
@@ -389,19 +409,37 @@ class HTTYD(Tab, HTTYD_tab_class):
         self._event.set()
         print('flight_mode_disconnected_entered')
 
-    def flight_logger(self):
-        logger.info('Starting flight logger thread')
 
-        log_angle = LogConfig(name='lighthouse', period_in_ms=10)
-        log_angle.add_variable('lighthouse.rawAngle0x', 'float')
-        log_angle.add_variable('lighthouse.rawAngle0y', 'float')
-        log_angle.add_variable('lighthouse.rawAngle1x', 'float')
-        log_angle.add_variable('lighthouse.rawAngle1y', 'float')
 
-        log_position = LogConfig(name='Position', period_in_ms=10)
-        log_position.add_variable('stateEstimate.x', 'float')
-        log_position.add_variable('stateEstimate.y', 'float')
-        log_position.add_variable('stateEstimate.z', 'float')
+    def flight_logger(self,cf,uri,key):
+        try:
+            logger.info('Starting flight logger thread')
+
+            log_angle = LogConfig(name='lighthouse', period_in_ms=1000)
+            log_angle.add_variable('lighthouse.rawAngle0x', 'float')
+            log_angle.add_variable('lighthouse.rawAngle0y', 'float')
+            log_angle.add_variable('lighthouse.rawAngle1x', 'float')
+            log_angle.add_variable('lighthouse.rawAngle1y', 'float')
+
+            log_position = LogConfig(name='Position', period_in_ms=50)
+            log_position.add_variable('stateEstimate.x', 'float')
+            log_position.add_variable('stateEstimate.y', 'float')
+            log_position.add_variable('stateEstimate.z', 'float')
+
+            if uri is not None:
+                with SyncCrazyflie(uri, cf=Crazyflie(rw_cache='./cache')) as scf:
+                    self.sync_logger(scf,key,log_angle,log_position)
+
+            else:
+                self.sync_logger(cf,key,log_angle,log_position)
+
+        except Exception as err:
+            logger.error(err)
+            # TODO multiple CF status
+            # self.cfStatus = str(err)
+
+
+    def sync_logger(self,cf,key,log_angle,log_position):
 
         rawAngle0x = [0, 0]
         rawAngle0y = [0, 0]
@@ -410,7 +448,8 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         state_estimate = [0, 0, 0]
 
-        with SyncLogger(self._cf, [log_angle,log_position]) as log:
+        with SyncLogger(cf, [log_angle,log_position]) as log:
+            # TODO add roll and yaw.
             for log_entry in log:
                 if 'lighthouse.rawAngle0x' in log_entry[1]:
                     data_1 = log_entry[1]
@@ -426,7 +465,9 @@ class HTTYD(Tab, HTTYD_tab_class):
                     # if rawAngle0x[0] == rawAngle0x[1] and rawAngle0y[0] == rawAngle0y[1] and rawAngle1x[0] == \
                     #         rawAngle1x[1] and rawAngle1y[0] == rawAngle1y[1]:
                     if rawAngle0x[0] == rawAngle0x[1] and rawAngle1x[0] == rawAngle1x[1]:
-                        self.cf_pos = Position(float('nan'), float('nan'), float('nan'))
+                        self.cf_pos_dict[key] = Position(float('nan'), float('nan'), float('nan'))
+                        print(key, 'nan')
+                        # self.cf_pos = Position(float('nan'), float('nan'), float('nan'))
                         # print(self.cf_pos.x, self.cf_pos.y, self.cf_pos.z)
 
                 if 'stateEstimate.x' in log_entry[1]:
@@ -437,19 +478,20 @@ class HTTYD(Tab, HTTYD_tab_class):
                         state_estimate[0] = data_2['stateEstimate.x']
                         state_estimate[1] = data_2['stateEstimate.y']
                         state_estimate[2] = data_2['stateEstimate.z']
-                        self.cf_pos = Position(state_estimate[0], state_estimate[1], state_estimate[2])
+                        self.cf_pos_dict[key] = Position(state_estimate[0], state_estimate[1], state_estimate[2])
+                        print(key)
+                        # self.cf_pos = Position(state_estimate[0], state_estimate[1], state_estimate[2])
                         # print('updating state estimate to {}'.format(self.cf_pos))
-                # else:
-                #     print('unknown log_entry {}'.format(log_entry[1]))
-                #     raise Exception
 
-        # except Exception as err:
-        #     logger.error(err)
-        #     self.cfStatus = str(err)
-        #
-        # logger.info('Terminating flight controller thread')
+                if not self._cf_L and not self._cf_R:
+                    break
+
+        self.switch_flight_mode(FlightModeStates.DISCONNECTED)
+        self.status = "Connection to {} lost, disconnecting all".format(key)
+        logger.info(self.status)
 
 
+        logger.info('Terminating flight controller thread')
 
     def flight_controller(self):
         try:
@@ -471,6 +513,9 @@ class HTTYD(Tab, HTTYD_tab_class):
             # The main flight control loop, the behaviour
             # is controlled by the state of "FlightMode"
             while self.flying_enabled:
+                # unpacking updated dictionary data
+                self.cf_pos = self.cf_pos_dict['cf_pos']
+
                 # print('start of the main control loop')
                 # Check that the position is valid and store it
                 if self.cf_pos.is_valid():
@@ -735,12 +780,6 @@ class HTTYD(Tab, HTTYD_tab_class):
                         self.switch_flight_mode(FlightModeStates.PATH)
 
                 elif self.flight_mode == FlightModeStates.GROUNDED:
-                    # # testing multiple drone connection
-                    # uri_2 = 'radio://0/80/2M/E7E7E7E7ED'
-                    # with SyncCrazyflie(uri_2, cf=Crazyflie(rw_cache='./cache')) as scf:
-                    #     print("yeah, I'm connected up!")
-                    #     time.sleep(3)
-                    #     print("now I will disconnect")
                     pass  # If gounded, the control is switched back to gamepad
 
                 time.sleep(0.001)
@@ -777,8 +816,8 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         self.cfStatus = (
             'Waiting for estimator to find stable position... '
-            '(QTM needs to be connected and providing data)'
         )
+        # TODO make a cf status for all other cfs.
 
         log_config = LogConfig(name='Kalman Variance', period_in_ms=100)
         log_config.add_variable('kalman.varPX', 'float')
