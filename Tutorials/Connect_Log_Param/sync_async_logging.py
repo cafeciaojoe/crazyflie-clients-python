@@ -2,6 +2,8 @@
 
 import time
 import logging
+import sys
+from cflib.utils.power_switch import PowerSwitch
 
 """The cflib.crtp module is for scanning for Crazyflies instances."""
 import cflib.crtp
@@ -94,6 +96,14 @@ def simple_connect():
     time.sleep(3)
     print("now I will disconnect")
 
+def simple_reset():
+
+    print("yeah, I'm connected up!")
+    time.sleep(1)
+    print("now I will reset")
+    PowerSwitch(uri).stm_power_cycle()
+    time.sleep(5)
+    print("now I will disconnect")
 
 if __name__ == '__main__':
     # Initialize the low-level drivers (don't list the debug drivers)
@@ -118,7 +128,9 @@ if __name__ == '__main__':
 
         # simple_connect()
 
-         simple_log(scf, lg_stab)
+        simple_reset()
+
+        # simple_log(scf, lg_stab)
 
         # simple_log_async(scf, lg_stab)
 

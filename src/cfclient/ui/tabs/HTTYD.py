@@ -160,7 +160,8 @@ class HTTYD(Tab, HTTYD_tab_class):
         # lighthouse tracking, if it cant be tracked the position becomes Nan
         # cf_pos_dict is what is updated by the three async flight logger calls.
         # they need to be unpacked at the top of the flight controller loop
-        self.cf_pos_dict = {'cf_pos':Position(float('nan'), float('nan'), float('nan')), 'cf_pos_L':Position(float('nan'), float('nan'), float('nan')),
+        self.cf_pos_dict = {'cf_pos':Position(float('nan'), float('nan'), float('nan')),
+                            'cf_pos_L':Position(float('nan'), float('nan'), float('nan')),
                             'cf_pos_R':Position(float('nan'), float('nan'), float('nan'))}
         self.cf_pos = Position(float('nan'), float('nan'), float('nan'))
         self.cf_pos_L = Position(float('nan'), float('nan'), float('nan'))
@@ -312,6 +313,8 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.flying_enabled = (self._cf is not None
                                   and self._cf_R is not None
                                   and self._cf_L is not None)
+
+
         """
         if the flying enabled is not the same as prev_flying enabled" 
         an additional check for security...?
@@ -327,6 +330,11 @@ class HTTYD(Tab, HTTYD_tab_class):
         """
         if prev_flying_enabled and not self.flying_enabled:
             self.switch_flight_mode(FlightModeStates.DISCONNECTED)
+
+        else:
+            pass
+
+
 
     """
     Although PyQt allows any Python callable to be used as a slot when 
@@ -406,14 +414,13 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         # Gui
         self.cfStatus = ': connected'
-        self.status = "Connecting to hand pads"
-        logger.info(self.status)
 
         self._helper_L.open_link(self.uri_L)
         self._helper_R.open_link(self.uri_R)
 
         self.t2 = threading.Thread(target=self.flight_logger, args = (self._helper.cf,'cf_pos'))
         self.t2.start()
+
 
     def _disconnected(self, link_uri):
         """Callback for when the Crazyflie has been disconnected"""
@@ -440,13 +447,18 @@ class HTTYD(Tab, HTTYD_tab_class):
         if self._cf == None:
             self._cf = self._helper.cf
             self.cfStatus = (': logging')
+
+
+        if self._cf_R != None and self._cf_L != None:
             self._update_flight_status()
 
     def _logging_error(self, log_conf, msg):
         """Callback from the log layer when an error occurs"""
 
-        QMessageBox.about(self, "Error",
-                          "Error when using log config"
+        self.switch_flight_mode(FlightModeStates.DISCONNECTED)
+
+        QMessageBox.about(self, "_cf Logging Error",
+                          "_cf encountered an error when using log config"
                           " [{0}]: {1}".format(log_conf.name, msg))
 
     # '_cf_L' CALLBACK FUNCTIONS
@@ -465,7 +477,6 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.cfStatus_L = ': not connected'
 
         self._cf_L = None
-        self._update_flight_status()
 
     def _param_updated_L(self, name, value):
         """Callback when the registered parameter get's updated"""
@@ -480,13 +491,14 @@ class HTTYD(Tab, HTTYD_tab_class):
         if self._cf_L == None:
             self._cf_L = self._helper_L
             self.cfStatus_L = (': logging')
-            self._update_flight_status()
 
     def _logging_error_L(self, log_conf, msg):
         """Callback from the log layer when an error occurs"""
 
-        QMessageBox.about(self, "Error",
-                          "Error when '_cf_L' using log config"
+        self.switch_flight_mode(FlightModeStates.DISCONNECTED)
+
+        QMessageBox.about(self, "_cf_L Logging Error",
+                          "_cf_L encountered an error when using log config"
                           " [{0}]: {1}".format(log_conf.name, msg))
 
     # '_cf_R' CALLBACK FUNCTIONS
@@ -506,7 +518,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.cfStatus_R = ': not connected'
 
         self._cf_R = None
-        self._update_flight_status()
+
 
     def _param_updated_R(self, name, value):
         """Callback when the registered parameter get's updated"""
@@ -521,14 +533,15 @@ class HTTYD(Tab, HTTYD_tab_class):
         if self._cf_R == None:
             self._cf_R = self._helper_R
             self.cfStatus_R = (': logging')
-            self._update_flight_status()
 
 
     def _logging_error_R(self, log_conf, msg):
         """Callback from the log layer when an error occurs"""
 
-        QMessageBox.about(self, "Error",
-                          "Error when '_cf_R' using log config"
+        self.switch_flight_mode(FlightModeStates.DISCONNECTED)
+
+        QMessageBox.about(self, "_cf_R Logging Error",
+                          "_cf_R encountered an error when using log config"
                           " [{0}]: {1}".format(log_conf.name, msg))
 
     def _flight_mode_land_entered(self):
@@ -564,85 +577,91 @@ class HTTYD(Tab, HTTYD_tab_class):
         print('flight_mode_disconnected_entered')
 
     def flight_logger(self,cf,key):
-        logger.info('Starting flight logger thread for {}'.format(key))
+        try:
+            logger.info('Starting flight logger thread for {}'.format(key))
 
-        log_angle = LogConfig(name='lighthouse', period_in_ms=2000)
-        log_angle.add_variable('lighthouse.rawAngle0x', 'float')
-        log_angle.add_variable('lighthouse.rawAngle0y', 'float')
-        log_angle.add_variable('lighthouse.rawAngle1x', 'float')
-        log_angle.add_variable('lighthouse.rawAngle1y', 'float')
+            log_angle = LogConfig(name='lighthouse', period_in_ms=1000)
+            log_angle.add_variable('lighthouse.rawAngle0x', 'float')
+            log_angle.add_variable('lighthouse.rawAngle0y', 'float')
+            log_angle.add_variable('lighthouse.rawAngle1x', 'float')
+            log_angle.add_variable('lighthouse.rawAngle1y', 'float')
 
-        log_position = LogConfig(name='Position', period_in_ms=1000)
-        log_position.add_variable('stateEstimate.x', 'float')
-        log_position.add_variable('stateEstimate.y', 'float')
-        log_position.add_variable('stateEstimate.z', 'float')
+            log_position = LogConfig(name='Position', period_in_ms=20)
+            log_position.add_variable('stateEstimate.x', 'float')
+            log_position.add_variable('stateEstimate.y', 'float')
+            log_position.add_variable('stateEstimate.z', 'float')
+            log_position.add_variable('stateEstimate.roll', 'float')
+            log_position.add_variable('stateEstimate.pitch', 'float')
+            log_position.add_variable('stateEstimate.yaw', 'float')
 
-        rawAngle0x = [0, 0]
-        rawAngle1x = [0, 0]
+            rawAngle0x = [0, 0]
+            rawAngle1x = [0, 0]
 
-        state_estimate = [0, 0, 0]
+            state_estimate = [0, 0, 0, 0, 0, 0]
 
-        cf.param.set_value('stabilizer.estimator', '2')
-        self.reset_estimator(cf)
-        cf.param.set_value('flightmode.posSet', '1')
+            cf.param.set_value('stabilizer.estimator', '2')
+            self.reset_estimator(cf)
+            cf.param.set_value('flightmode.posSet', '1')
 
-        time.sleep(0.1)
+            time.sleep(0.1)
 
-        if cf == self._helper.cf:
-            print('_cf callbacks set')
-            log_angle.data_received_cb.add_callback(self._log_data_received)
-            log_position.data_received_cb.add_callback(self._log_data_received)
-            log_angle.error_cb.add_callback(self._log_error_signal)
-            log_position.error_cb.add_callback(self._log_error_signal)
+            if cf == self._helper.cf:
+                print('_cf callbacks set')
+                log_angle.data_received_cb.add_callback(self._log_data_received)
+                log_position.data_received_cb.add_callback(self._log_data_received)
+                log_angle.error_cb.add_callback(self._log_error_signal)
+                log_position.error_cb.add_callback(self._log_error_signal)
 
-        if cf == self._helper_L:
-            print('_cf_L callbacks set')
-            log_angle.data_received_cb.add_callback(self._log_data_received_L)
-            log_position.data_received_cb.add_callback(self._log_data_received_L)
-            log_angle.error_cb.add_callback(self._log_error_signal_L)
-            log_position.error_cb.add_callback(self._log_error_signal_L)
+            if cf == self._helper_L:
+                print('_cf_L callbacks set')
+                log_angle.data_received_cb.add_callback(self._log_data_received_L)
+                log_position.data_received_cb.add_callback(self._log_data_received_L)
+                log_angle.error_cb.add_callback(self._log_error_signal_L)
+                log_position.error_cb.add_callback(self._log_error_signal_L)
 
-        if cf == self._helper_R:
-            print('_cf_R callbacks set')
-            log_angle.data_received_cb.add_callback(self._log_data_received_R)
-            log_position.data_received_cb.add_callback(self._log_data_received_R)
-            log_angle.error_cb.add_callback(self._log_error_signal_R)
-            log_position.error_cb.add_callback(self._log_error_signal_R)
+            if cf == self._helper_R:
+                print('_cf_R callbacks set')
+                log_angle.data_received_cb.add_callback(self._log_data_received_R)
+                log_position.data_received_cb.add_callback(self._log_data_received_R)
+                log_angle.error_cb.add_callback(self._log_error_signal_R)
+                log_position.error_cb.add_callback(self._log_error_signal_R)
 
-        with SyncLogger(cf, [log_angle, log_position]) as log:
-            # TODO add roll and yaw.
-            for log_entry in log:
-                print(key)
-                if 'lighthouse.rawAngle0x' in log_entry[1]:
-                    data_1 = log_entry[1]
-                    rawAngle0x.append(data_1['lighthouse.rawAngle0x'])
-                    rawAngle0x.pop(0)
-                    rawAngle1x.append(data_1['lighthouse.rawAngle1x'])
-                    rawAngle1x.pop(0)
-                    # if you cannot see ANY of the trackers.
-                    if rawAngle0x[0] == rawAngle0x[1] and rawAngle1x[0] == rawAngle1x[1]:
-                        self.cf_pos_dict[key] = Position(float('nan'), float('nan'), float('nan'))
-                        # print(key, 'nan')
-                        # self.cf_pos = Position(float('nan'), float('nan'), float('nan'))
-                        # print(self.cf_pos.x, self.cf_pos.y, self.cf_pos.z)
+            with SyncLogger(cf, [log_angle, log_position]) as log:
+                for log_entry in log:
+                    # print(key)
+                    if 'lighthouse.rawAngle0x' in log_entry[1]:
+                        data_1 = log_entry[1]
+                        rawAngle0x.append(data_1['lighthouse.rawAngle0x'])
+                        rawAngle0x.pop(0)
+                        rawAngle1x.append(data_1['lighthouse.rawAngle1x'])
+                        rawAngle1x.pop(0)
+                        # if you cannot see ANY of the trackers.
+                        if rawAngle0x[0] == rawAngle0x[1] and rawAngle1x[0] == rawAngle1x[1]:
+                            self.cf_pos_dict[key] = Position(float('nan'), float('nan'), float('nan'))
+                            # print(key, 'nan')
+                            # self.cf_pos = Position(float('nan'), float('nan'), float('nan'))
+                            # print(self.cf_pos.x, self.cf_pos.y, self.cf_pos.z)
 
-                if 'stateEstimate.x' in log_entry[1]:
-                    # if you can see ANY of the trackers.
-                    if rawAngle0x[0] != rawAngle0x[1] or rawAngle1x[0] != rawAngle1x[1]:
-                        data_2 = log_entry[1]
-                        state_estimate[0] = data_2['stateEstimate.x']
-                        state_estimate[1] = data_2['stateEstimate.y']
-                        state_estimate[2] = data_2['stateEstimate.z']
-                        self.cf_pos_dict[key] = Position(state_estimate[0], state_estimate[1], state_estimate[2])
-                        # self.cf_pos = Position(state_estimate[0], state_estimate[1], state_estimate[2])
-                        # print('updating state estimate to {}'.format(self.cf_pos))
+                    if 'stateEstimate.x' in log_entry[1]:
+                        # if you can see ANY of the trackers.
+                        if rawAngle0x[0] != rawAngle0x[1] or rawAngle1x[0] != rawAngle1x[1]:
+                            data_2 = log_entry[1]
+                            state_estimate[0] = data_2['stateEstimate.x']
+                            state_estimate[1] = data_2['stateEstimate.y']
+                            state_estimate[2] = data_2['stateEstimate.z']
+                            state_estimate[3] = data_2['stateEstimate.roll']
+                            state_estimate[4] = data_2['stateEstimate.pitch']
+                            state_estimate[5] = data_2['stateEstimate.yaw']
+                            self.cf_pos_dict[key] = Position(state_estimate[0], state_estimate[1], state_estimate[2],state_estimate[3],state_estimate[4],state_estimate[5])
+                            # print('updating state estimate to {}'.format(self.cf_pos))
 
-                # if any of the cf's leave the logger loop
-                # todo fix this shit
+                    # if any of the cf's leave the logger loop
 
-
-                if not self._cf or not self._cf_L or not self._cf_R:
-                    break
+                    if not cf:
+                        break
+        finally:
+            print('Terminating flight logger thread:', cf)
+            # todo fix the problem where the state is not updated to 'logging after reconnecting' possibly restart the CF each time?
 
     def flight_controller(self):
         try:
@@ -650,9 +669,10 @@ class HTTYD(Tab, HTTYD_tab_class):
 
             # The threshold for how many frames without tracking
             # is allowed before the cf's motors are stopped
-            lost_tracking_threshold = 1000
+            lost_tracking_threshold = 1
             frames_without_tracking = 0
             position_hold_timer = 0
+            spin = 0
             self.circle_angle = 0.0
 
             # The main flight control loop, the behaviour
@@ -677,15 +697,15 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                     if frames_without_tracking > lost_tracking_threshold and \
                             self.flight_mode != FlightModeStates.GROUNDED:
-                        self.switch_flight_mode(FlightModeStates.GROUNDED)
-                        self.status = "Tracking lost, turning off motors"
+                        self.switch_flight_mode(FlightModeStates.DISCONNECTED)
+                        self.status = "Tracking lost, Disconnecting"
                         logger.info(self.status)
 
                 # If the cf is upside down, kill the motors
                 if (self.valid_cf_pos.roll > 120 or self.valid_cf_pos.roll < -120) and \
                         self.flight_mode != FlightModeStates.GROUNDED:
-                    self.switch_flight_mode(FlightModeStates.GROUNDED)
-                    self.status = "Status: Upside down, turning off motors"
+                    self.switch_flight_mode(FlightModeStates.DISCONNECTED)
+                    self.status = "Status: Upside down, Disconnecting"
                     logger.info(self.status)
 
                 # Switch on the FlightModeState and take actions accordingly
@@ -694,13 +714,14 @@ class HTTYD(Tab, HTTYD_tab_class):
 
 
                 if self.flight_mode == FlightModeStates.LAND:
-
+                    spin += 3.5
+                    print(spin)
                     self.send_setpoint(
                         Position(
                             self.current_goal_pos.x,
                             self.current_goal_pos.y,
                             (self.current_goal_pos.z / self.land_rate),
-                            yaw=0))
+                            yaw=spin))
                     # Check if the cf has reached the  position,
                     # if it has set a new position
 
@@ -722,6 +743,7 @@ class HTTYD(Tab, HTTYD_tab_class):
                         #     # Regular landing
                         #     mode = FlightModeStates.GROUNDED
                         mode = FlightModeStates.GROUNDED
+                        spin = 0
                         self.switch_flight_mode(mode)
 
                 elif self.flight_mode == FlightModeStates.PATH:
@@ -1016,15 +1038,15 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                     if cf == self._helper.cf:
                         self.cfStatus = (
-                            ': connected and stabilised'
+                            ': stabilised'
                         )
                     if cf == self._helper_L:
                         self.cfStatus_L = (
-                            ': connected and stabilised'
+                            ': stabilised'
                         )
                     if cf == self._helper_R:
                         self.cfStatus_R = (
-                            ': connected and stabilised'
+                            ': stabilised'
                         )
 
                     break
@@ -1062,7 +1084,7 @@ class HTTYD(Tab, HTTYD_tab_class):
     def send_setpoint(self, pos):
         # Wraps the send command to the crazyflie
         if self._cf is not None:
-            self._cf.commander.send_position_setpoint(pos.x, pos.y, pos.z, 0.0)
+            self._cf.commander.send_position_setpoint(pos.x, pos.y, pos.z, pos.yaw)
 
 class Position:
     def __init__(self, x, y, z, roll=0.0, pitch=0.0, yaw=0.0):
