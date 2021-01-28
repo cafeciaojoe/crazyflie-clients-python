@@ -116,9 +116,11 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.menuName = "HTTYD Tab"
         self.tabWidget = tabWidget
 
-        self._setup_states()
-
+        # the above helper cf instances are only assigned to  _cf_L and _cf_R after they start logging
         self._helper = helper
+        self._cf = None
+
+        self.last_time = 0
 
         # assign the label to the _cf_status_ string
         self._cf_status = self.cfStatusLabel.text()
@@ -231,6 +233,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         add_transition(FlightModeStates.LAND, land, parent_state)
         add_transition(FlightModeStates.LIFT, lift, parent_state)
         add_transition(FlightModeStates.HOVERING, hovering, parent_state)
+        add_transition(FlightModeStates.FOLLOW, follow, parent_state)
         add_transition(FlightModeStates.GROUNDED, grounded, parent_state)
         add_transition(FlightModeStates.DISCONNECTED, disconnected,
                        parent_state)
@@ -267,10 +270,10 @@ class HTTYD(Tab, HTTYD_tab_class):
         if not prev_flying_enabled and self.flying_enabled:
             self.switch_flight_mode(FlightModeStates.GROUNDED)
             t1 = threading.Thread(target=self.flight_controller)
-            t2 = threading.Thread(target=self.flight_logger)
+            # t2 = threading.Thread(target=self.flight_logger)
 
             t1.start()
-            t2.start()
+            # t2.start()
 
         """
         if either the CF or QTM/Posenet Drops out. 
@@ -332,6 +335,9 @@ class HTTYD(Tab, HTTYD_tab_class):
         # Gui
         self.cfStatus = ': connected'
 
+        self.t2 = threading.Thread(target=self.flight_logger)
+        self.t2.start()
+
     def _disconnected(self, link_uri):
         """Callback for when the Crazyflie has been disconnected"""
 
@@ -392,13 +398,13 @@ class HTTYD(Tab, HTTYD_tab_class):
     def flight_logger(self):
         logger.info('Starting flight logger thread')
 
-        log_angle = LogConfig(name='lighthouse', period_in_ms=10)
+        log_angle = LogConfig(name='lighthouse', period_in_ms=100)
         log_angle.add_variable('lighthouse.rawAngle0x', 'float')
         log_angle.add_variable('lighthouse.rawAngle0y', 'float')
         log_angle.add_variable('lighthouse.rawAngle1x', 'float')
         log_angle.add_variable('lighthouse.rawAngle1y', 'float')
 
-        log_position = LogConfig(name='Position', period_in_ms=10)
+        log_position = LogConfig(name='Position', period_in_ms=100)
         log_position.add_variable('stateEstimate.x', 'float')
         log_position.add_variable('stateEstimate.y', 'float')
         log_position.add_variable('stateEstimate.z', 'float')
@@ -425,8 +431,10 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                     # if rawAngle0x[0] == rawAngle0x[1] and rawAngle0y[0] == rawAngle0y[1] and rawAngle1x[0] == \
                     #         rawAngle1x[1] and rawAngle1y[0] == rawAngle1y[1]:
+                    print('0x-1x =',rawAngle0x[0]-rawAngle0x[1], '0y-1y =',rawAngle0y[0]-rawAngle1y[1])
                     if rawAngle0x[0] == rawAngle0x[1] and rawAngle1x[0] == rawAngle1x[1]:
                         self.cf_pos = Position(float('nan'), float('nan'), float('nan'))
+                        print('setting cf_pos.x to {}'.format(self.cf_pos.x))
                         # print(self.cf_pos.x, self.cf_pos.y, self.cf_pos.z)
 
                 if 'stateEstimate.x' in log_entry[1]:
@@ -438,7 +446,7 @@ class HTTYD(Tab, HTTYD_tab_class):
                         state_estimate[1] = data_2['stateEstimate.y']
                         state_estimate[2] = data_2['stateEstimate.z']
                         self.cf_pos = Position(state_estimate[0], state_estimate[1], state_estimate[2])
-                        # print('updating state estimate to {}'.format(self.cf_pos))
+                        print('updating state estimate to {}'.format(self.cf_pos.x))
                 # else:
                 #     print('unknown log_entry {}'.format(log_entry[1]))
                 #     raise Exception
@@ -453,12 +461,12 @@ class HTTYD(Tab, HTTYD_tab_class):
 
     def flight_controller(self):
         try:
-            logger.info('Starting flight controller thread')
+            logger.info('Starting flight controller thread for {}'.format(self._cf))
             self._cf.param.set_value('stabilizer.estimator', '2')
             self.reset_estimator(self._cf)
 
             self._cf.param.set_value('flightmode.posSet', '1')
-
+            print('**PARAMETERS SET**')
             time.sleep(0.1)
 
             # The threshold for how many frames without tracking
@@ -471,6 +479,7 @@ class HTTYD(Tab, HTTYD_tab_class):
             # The main flight control loop, the behaviour
             # is controlled by the state of "FlightMode"
             while self.flying_enabled:
+                print('cf_pos.x = {}'.format(self.cf_pos.x))
                 # print('start of the main control loop')
                 # Check that the position is valid and store it
                 if self.cf_pos.is_valid():
@@ -809,8 +818,8 @@ class HTTYD(Tab, HTTYD_tab_class):
                 min_z = min(var_z_history)
                 max_z = max(var_z_history)
 
-                # print("{} {} {}".
-                # format(max_x - min_x, max_y - min_y, max_z - min_z))
+                print("x var = {} y var = {} z var = {}".
+                format(max_x - min_x, max_y - min_y, max_z - min_z))
 
                 if (max_x - min_x) < threshold and (
                         max_y - min_y) < threshold and (
@@ -858,8 +867,15 @@ class HTTYD(Tab, HTTYD_tab_class):
 
     def send_setpoint(self, pos):
         # Wraps the send command to the crazyflie
-        if self._cf is not None:
+
+        latest_time = time.perf_counter()
+        print('latest time =',latest_time)
+
+        if latest_time - self.last_time < .100:
+            return
+        elif self._cf is not None:
             self._cf.commander.send_position_setpoint(pos.x, pos.y, pos.z, 0.0)
+            self.last_time =  time.perf_counter()
 
 class Position:
     def __init__(self, x, y, z, roll=0.0, pitch=0.0, yaw=0.0):
