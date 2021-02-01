@@ -46,16 +46,16 @@ __author__ = 'Bitcraze AB'
 __all__ = []
 
 available = [
-    ConsoleTab,
+ #   ConsoleTab,
     # ExampleTab,
     FlightTab,
     # GpsTab,
     LEDTab,
-    LogBlockTab,
+  #  LogBlockTab,
     LogTab,
-    ParamTab,
+  #  ParamTab,
     PlotTab,
-    LocoPositioningTab,
-    QualisysTab,
+  #  LocoPositioningTab,
+  #  QualisysTab,
     HTTYD,
 ]

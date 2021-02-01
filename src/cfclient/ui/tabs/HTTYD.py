@@ -122,6 +122,8 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         self.last_time = 0
 
+        self.min_voltage = float('Infinity')
+        self.max_voltage = -float('Infinity')
         # assign the label to the _cf_status_ string
         self._cf_status = self.cfStatusLabel.text()
         self._status = self.statusLabel.text()
@@ -416,8 +418,15 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         state_estimate = [0, 0, 0]
 
-        with SyncLogger(self._cf, [log_angle,log_position]) as log:
+        log_bat = LogConfig("Battery", 10)
+        log_bat.add_variable("pm.vbat", "float")
+
+        with SyncLogger(self._cf, [log_bat]) as log:
             for log_entry in log:
+                if 'pm.vbat' in log_entry[1]:
+                    self.min_voltage = min(log_entry[1]['pm.vbat'], self.min_voltage)
+                    self.max_voltage = max(log_entry[1]['pm.vbat'], self.max_voltage)
+
                 if 'lighthouse.rawAngle0x' in log_entry[1]:
                     data_1 = log_entry[1]
                     rawAngle0x.append(data_1['lighthouse.rawAngle0x'])
@@ -431,10 +440,10 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                     # if rawAngle0x[0] == rawAngle0x[1] and rawAngle0y[0] == rawAngle0y[1] and rawAngle1x[0] == \
                     #         rawAngle1x[1] and rawAngle1y[0] == rawAngle1y[1]:
-                    print('0x-1x =',rawAngle0x[0]-rawAngle0x[1], '0y-1y =',rawAngle0y[0]-rawAngle1y[1])
+                    #print('0x-0x =', rawAngle0x[0]-rawAngle0x[1], '1x-1x =', rawAngle1x[0]-rawAngle1x[1])
                     if rawAngle0x[0] == rawAngle0x[1] and rawAngle1x[0] == rawAngle1x[1]:
                         self.cf_pos = Position(float('nan'), float('nan'), float('nan'))
-                        print('setting cf_pos.x to {}'.format(self.cf_pos.x))
+                        #print('setting c_pos.x to {}'.format(self.cf_pos.x))
                         # print(self.cf_pos.x, self.cf_pos.y, self.cf_pos.z)
 
                 if 'stateEstimate.x' in log_entry[1]:
@@ -446,7 +455,9 @@ class HTTYD(Tab, HTTYD_tab_class):
                         state_estimate[1] = data_2['stateEstimate.y']
                         state_estimate[2] = data_2['stateEstimate.z']
                         self.cf_pos = Position(state_estimate[0], state_estimate[1], state_estimate[2])
-                        print('updating state estimate to {}'.format(self.cf_pos.x))
+                        #print('updating state estimate to {}'.format(self.cf_pos.x))
+                        #print('Distance from hover {}'.format(self.cf_pos.distance_to(Position(0,
+                        #         0, 1))))
                 # else:
                 #     print('unknown log_entry {}'.format(log_entry[1]))
                 #     raise Exception
@@ -479,7 +490,7 @@ class HTTYD(Tab, HTTYD_tab_class):
             # The main flight control loop, the behaviour
             # is controlled by the state of "FlightMode"
             while self.flying_enabled:
-                print('cf_pos.x = {}'.format(self.cf_pos.x))
+                # print('cf_pos.x = {}'.format(self.cf_pos.x))
                 # print('start of the main control loop')
                 # Check that the position is valid and store it
                 if self.cf_pos.is_valid():
@@ -492,7 +503,7 @@ class HTTYD(Tab, HTTYD_tab_class):
                     frames_without_tracking += 1
                     # print('frames without tracking {}'.format(frames_without_tracking))
 
-                    if frames_without_tracking > lost_tracking_threshold:
+                    if frames_without_tracking > lost_tracking_threshold and self.flight_mode != FlightModeStates.GROUNDED:
                         self.switch_flight_mode(FlightModeStates.GROUNDED)
                         self.status = "Tracking lost, turning off motors"
                         logger.info(self.status)
@@ -511,6 +522,12 @@ class HTTYD(Tab, HTTYD_tab_class):
 
 
                 if self.flight_mode == FlightModeStates.LAND:
+                    if self.min_voltage != float('Infinity'):
+                        print("Min voltage {}".format(self.min_voltage))
+                        print("Max voltage {}".format(self.max_voltage))
+
+                    self.min_voltage = float('Infinity')
+                    self.max_voltage = -float('Infinity')
 
                     self.send_setpoint(
                         Position(
@@ -674,21 +691,28 @@ class HTTYD(Tab, HTTYD_tab_class):
                 elif self.flight_mode == FlightModeStates.LIFT:
 
                     self.send_setpoint(
-                        Position(self.current_goal_pos.x,
-                                 self.current_goal_pos.y, 1))
+                        Position(0,
+                                 0, 1))
 
-                    if self.valid_cf_pos.distance_to(
-                            Position(self.current_goal_pos.x,
-                                     self.current_goal_pos.y, 1)) < 0.17:
-                        # Wait for hte crazyflie to reach the goal
-                        self.switch_flight_mode(FlightModeStates.HOVERING)
-                    else:
-                        print(self.valid_cf_pos.distance_to(
-                            Position(self.current_goal_pos.x,
-                                     self.current_goal_pos.y, 1)))
+                    # self.send_setpoint(
+                    #     Position(self.current_goal_pos.x,
+                    #              self.current_goal_pos.y, 1))
+
+                    # if self.valid_cf_pos.distance_to(
+                    #         Position(self.current_goal_pos.x,
+                    #                  self.current_goal_pos.y, 1)) < 0.17:
+                    #     # Wait for hte crazyflie to reach the goal
+                    #     self.switch_flight_mode(FlightModeStates.HOVERING)
+                    # else:
+                    #     print(self.valid_cf_pos.distance_to(
+                    #         Position(self.current_goal_pos.x,
+                    #                  self.current_goal_pos.y, 1)))
 
                 elif self.flight_mode == FlightModeStates.HOVERING:
-                    self.send_setpoint(self.current_goal_pos)
+                    self.send_setpoint(
+                        Position(0,
+                                 0, 0.5))
+                   # self.send_setpoint()
 
                 elif self.flight_mode == FlightModeStates.RECORD:
 
@@ -869,7 +893,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         # Wraps the send command to the crazyflie
 
         latest_time = time.perf_counter()
-        print('latest time =',latest_time)
+        #print('latest time =',latest_time)
 
         if latest_time - self.last_time < .100:
             return

@@ -116,11 +116,11 @@ if __name__ == '__main__':
     """
     with SyncCrazyflie(uri, cf=Crazyflie(rw_cache='./cache')) as scf:
 
-        # simple_connect()
+        simple_connect()
 
         # simple_log(scf, lg_stab)
 
-        simple_log_async(scf, lg_stab)
+        # simple_log_async(scf, lg_stab)
 
         # """calling the async param read/write function on the stabilizer/estimator funciton"""
         # simple_param_async(scf, group, name)
