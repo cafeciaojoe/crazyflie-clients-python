@@ -1,4 +1,4 @@
-# Crazyflie PC client [![Build Status](https://api.travis-ci.org/bitcraze/crazyflie-clients-python.svg)](https://travis-ci.org/bitcraze/crazyflie-clients-python) [![Build status](https://ci.appveyor.com/api/projects/status/u2kejdbc9wrexo31?svg=true)](https://ci.appveyor.com/project/bitcraze/crazyflie-clients-python) [![cfclient](https://snapcraft.io//cfclient/badge.svg)](https://snapcraft.io/cfclient)
+# Crazyflie PC client [![CI](https://github.com/bitcraze/crazyflie-clients-python/workflows/CI/badge.svg)](https://github.com/bitcraze/crazyflie-clients-python/actions?query=workflow%3ACI) [![cfclient](https://snapcraft.io//cfclient/badge.svg)](https://snapcraft.io/cfclient)
 
 
 The Crazyflie PC client enables flashing and controlling the Crazyflie.
@@ -13,12 +13,10 @@ For more info see our [documentation](https://www.bitcraze.io/documentation/repo
 
 The client can be installed and run with snap, it can be found on [snapcraft](https://snapcraft.io/cfclient) (ie. search Crazyflie in Ubuntu software) or installed from command line:
 ```
-snap install --edge cfclient
-snap connect cfclient:raw-usb    # Required to access the Crazyradio
-snap connect cfclient:joystick   # Required to access gamepads
+snap install --beta cfclient
 ```
 
-The only build available right now is the latest commit from github (edge), the next version will be pushed in the snapcraft stable channel.
+The edge version is currently broken (latest github commit). The last working version has been set to beta. The next release will be pushed in the snapcraft stable channel.
 
 It is still required to set the udev permission with the snap, see the last section of this page.
 
@@ -52,7 +50,19 @@ At the very least you should **never** run pip in sudo, this would install depen
 
 ## Linux
 
-All dependencies on linux are handled by pip so to install an editable copy simply run:
+### Prerequisites
+
+From a fresh Ubuntu 20.04 system, running the client form source requires git and pip.
+
+```
+sudo apt install git python3-pip
+git clone https://github.com/bitcraze/crazyflie-clients-python
+cd crazyflie-clients-python
+```
+
+### Installing the client
+
+All other dependencies on linux are handled by pip so to install an editable copy simply run:
 
 ```
 $ python3 -m pip install -e .
@@ -119,11 +129,15 @@ makensis win32install\cfclient.nsi
 
 ## Mac OSX
 
+**Note**: On macOS 11 Big Sur, a recent version of python 3.9 and pip3 from brew is required, make sure your python3 install is up to date and if necessary upgrade pip with ```pip3 install --upgrade pip```.
+
 The supported way to run on Mac is by using the [Homebrew](http://brew.sh/) distribution of python3.
 
 Python3 and required libs can be installed with brew:
 ```
 brew install python3 sdl2 libusb
+brew link python3   # This makes sure the latest python3 is used
+# if "which python3" does not return "/usr/local/bin/python3", relaunch your terminal
 ```
 
 To install the client in edit mode:

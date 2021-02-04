@@ -40,6 +40,8 @@ from .ParamTab import ParamTab
 from .PlotTab import PlotTab
 from .locopositioning_tab import LocoPositioningTab
 from .QualisysTab import QualisysTab
+from .LogClientTab import LogClientTab
+from .lighthouse_tab import LighthouseTab
 
 __author__ = 'Bitcraze AB'
 __all__ = []
@@ -55,5 +57,7 @@ available = [
     ParamTab,
     PlotTab,
     LocoPositioningTab,
+    LighthouseTab,
     QualisysTab,
+    LogClientTab,
 ]

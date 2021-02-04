@@ -7,7 +7,7 @@
 #  +------+    / /_/ / / /_/ /__/ /  / /_/ / / /_/  __/
 #   ||  ||    /_____/_/\__/\___/_/   \__,_/ /___/\___/
 #
-#  Copyright (C) 2011-2013 Bitcraze AB
+#  Copyright (C) 2011-2021 Bitcraze AB
 #
 #  Crazyflie Nano Quadcopter Client
 #
@@ -30,6 +30,7 @@ import logging
 import sys
 
 import cfclient
+from cfclient.ui.pose_logger import PoseLogger
 import cfclient.ui.tabs
 import cfclient.ui.toolboxes
 import cflib.crtp
@@ -165,11 +166,6 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
         self.joystickReader.device_discovery.add_callback(
             self._input_discovery_signal.emit)
 
-        # Hide the 'File' menu on OS X, since its only item, 'Exit', gets
-        # merged into the application menu.
-        if sys.platform == 'darwin':
-            self.menuFile.menuAction().setVisible(False)
-
         # Connect UI signals
         self.logConfigAction.triggered.connect(self._show_connect_dialog)
         self.interfaceCombo.currentIndexChanged['QString'].connect(
@@ -246,6 +242,7 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
         cfclient.ui.pluginhelper.cf = self.cf
         cfclient.ui.pluginhelper.inputDeviceReader = self.joystickReader
         cfclient.ui.pluginhelper.logConfigReader = self.logConfigReader
+        cfclient.ui.pluginhelper.pose_logger = PoseLogger(self.cf)
         cfclient.ui.pluginhelper.mainUI = self
 
         self.logConfigDialogue = LogConfigDialogue(cfclient.ui.pluginhelper)
