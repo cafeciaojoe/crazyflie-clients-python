@@ -93,9 +93,9 @@ class FlightModeStates(Enum):
 class HTTYD(Tab, HTTYD_tab_class):
     """Define some signals that will emit some string,
     signals a are usually sent by buttons
-    these signals need to be connected to a slot/slots. 
+    these signals need to be connected to a slot/slots.
     so for example, when the CF is connected, a bunch of things
-    in the GUI happen. 
+    in the GUI happen.
 
     https://youtu.be/GIg9ehmGJHY?t=1420
     """
@@ -167,11 +167,9 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.cf_pos_dict = {'cf_pos': Position(float('nan'), float('nan'), float('nan')),
                             'cf_pos_L': Position(float('nan'), float('nan'), float('nan')),
                             'cf_pos_R': Position(float('nan'), float('nan'), float('nan'))}
-        self.cf_pos = Position(float('nan'), float('nan'), float('nan'))
-        self.cf_pos_L = Position(float('nan'), float('nan'), float('nan'))
-        self.cf_pos_R = Position(float('nan'), float('nan'), float('nan'))
-
-
+        self.cf_pos = Position(0, 0, 0)
+        self.cf_pos_L = Position(0, 0, 0)
+        self.cf_pos_R = Position(0, 0, 0)
 
         # The regular cf_pos can a times due to lost tracing become Nan,
         # this the latest known valid cf position
@@ -181,9 +179,6 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         self.end_of_wand_L = Position(0, 0, 0)
         self.end_of_wand_R = Position(0, 0, 0)
-
-        self.cf_pos_L = Position(0, 0, 0)
-        self.cf_pos_R = Position(0, 0, 0)
 
         self.mid_pos = Position(0, 0, 0)
 
@@ -226,6 +221,11 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.landButton.clicked.connect(self.set_land_mode)
         self.followButton.clicked.connect(self.set_follow_mode)
         self.emergencyButton.clicked.connect(self.set_kill_engine)
+
+        #
+        self._ui_update_timer = QTimer(self)
+        self._ui_update_timer.timeout.connect(self._update_ui)
+
 
     def _setup_states(self):
         parent_state = QState()
@@ -311,7 +311,7 @@ class HTTYD(Tab, HTTYD_tab_class):
     update flight status is called when;
     - the CF is connected or disconnected
     - the QTM (or in our case the poseNet) is connected or disconnected
-    it ensure that they are both connected before starting the flight controller. 
+    it ensure that they are both connected before starting the flight controller.
     """
 
     def _update_flight_status(self):
@@ -330,7 +330,7 @@ class HTTYD(Tab, HTTYD_tab_class):
                                and self._cf_L is not None)
 
         """
-        if the flying enabled is not the same as prev_flying enabled" 
+        if the flying enabled is not the same as prev_flying enabled"
         an additional check for security...?
         """
         if not prev_flying_enabled and self.flying_enabled:
@@ -339,7 +339,7 @@ class HTTYD(Tab, HTTYD_tab_class):
             t1.start()
 
         """
-        if either the CF or QTM/Posenet Drops out. 
+        if either the CF or QTM/Posenet Drops out.
         flight mode is disconnect
         """
         if prev_flying_enabled and not self.flying_enabled:
@@ -349,9 +349,9 @@ class HTTYD(Tab, HTTYD_tab_class):
             pass
 
     """
-    Although PyQt allows any Python callable to be used as a slot when 
-    connecting signals, it is sometimes necessary to explicitly mark a 
-    Python method as being a Qt slot and to provide a C++ signature for it. 
+    Although PyQt allows any Python callable to be used as a slot when
+    connecting signals, it is sometimes necessary to explicitly mark a
+    Python method as being a Qt slot and to provide a C++ signature for it.
     PyQt4 provides the pyqtSlot() function decorator to do this
     """
 
@@ -372,8 +372,8 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.statusLabel.setText("System Status: {}".format(status))
 
     """
-    A new Qt property may be defined using the pyqtProperty function. 
-    It is used in the same way as the standard Python property() function. 
+    A new Qt property may be defined using the pyqtProperty function.
+    It is used in the same way as the standard Python property() function.
     In fact, Qt properties defined in this way also behave as Python properties.
     https://www.riverbankcomputing.com/static/Docs/PyQt5/qt_properties.html
     https://www.youtube.com/watch?v=jCzT9XFZ5bw
@@ -434,6 +434,8 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.t2 = threading.Thread(target=self.flight_logger, args=(self._helper.cf, 'cf_pos'))
         self.t2.start()
 
+        self._ui_update_timer.start(200)
+
     def _disconnected(self, link_uri):
         """Callback for when the Crazyflie has been disconnected"""
 
@@ -446,6 +448,8 @@ class HTTYD(Tab, HTTYD_tab_class):
         self._cf = None
 
         self._update_flight_status()
+
+        self._ui_update_timer.stop()
 
     def _param_updated(self, name, value):
         """Callback when the registered parameter get's updated"""
@@ -553,6 +557,32 @@ class HTTYD(Tab, HTTYD_tab_class):
                           "_cf_R encountered an error when using log config"
                           " [{0}]: {1}".format(log_conf.name, msg))
 
+    def _update_ui(self):
+        # Update the data in the GUI
+        self.cf_X.setText(("%0.4f" % self.cf_pos.x))
+        self.cf_Y.setText(("%0.4f" % self.cf_pos.y))
+        self.cf_Z.setText(("%0.4f" % self.cf_pos.z))
+
+        self.cf_Roll.setText(("%0.2f" % self.cf_pos.roll))
+        self.cf_Pitch.setText(("%0.2f" % self.cf_pos.pitch))
+        self.cf_Yaw.setText(("%0.2f" % self.cf_pos.yaw))
+
+        self.cf_L_X.setText(("%0.4f" % self.cf_pos_L.x))
+        self.cf_L_Y.setText(("%0.4f" % self.cf_pos_L.y))
+        self.cf_L_Z.setText(("%0.4f" % self.cf_pos_L.z))
+
+        self.cf_L_Roll.setText(("%0.2f" % self.cf_pos_L.roll))
+        self.cf_L_Pitch.setText(("%0.2f" % self.cf_pos_L.pitch))
+        self.cf_L_Yaw.setText(("%0.2f" % self.cf_pos_L.yaw))
+
+        self.cf_R_X.setText(("%0.4f" % self.cf_pos_R.x))
+        self.cf_R_Y.setText(("%0.4f" % self.cf_pos_R.y))
+        self.cf_R_Z.setText(("%0.4f" % self.cf_pos_R.z))
+
+        self.cf_R_Roll.setText(("%0.2f" % self.cf_pos_R.roll))
+        self.cf_R_Pitch.setText(("%0.2f" % self.cf_pos_R.pitch))
+        self.cf_R_Yaw.setText(("%0.2f" % self.cf_pos_R.yaw))
+
     def _flight_mode_land_entered(self):
         self.current_goal_pos = self.valid_cf_pos
         logger.info('Trying to land at: x: {} y: {}'.format(
@@ -608,9 +638,12 @@ class HTTYD(Tab, HTTYD_tab_class):
 
             state_estimate = [0, 0, 0, 0, 0, 0]
 
-            cf.param.set_value('stabilizer.estimator', '2')
+            # Default estimator is the EKF when using lighthouse deck
+            # cf.param.set_value('stabilizer.estimator', '2')
             self.reset_estimator(cf)
-            cf.param.set_value('flightmode.posSet', '1')
+            # flightmode.posSet is an old hack that used modified roll pitch yaw packets
+            # to send x y z data.
+            # cf.param.set_value('flightmode.posSet', '1')
 
             time.sleep(0.1)
 
@@ -679,7 +712,7 @@ class HTTYD(Tab, HTTYD_tab_class):
 
             # The threshold for how many frames without tracking
             # is allowed before the cf's motors are stopped
-            lost_tracking_threshold = 1
+            lost_tracking_threshold = 100
             frames_without_tracking = 0
             position_hold_timer = 0
             spin = 0
@@ -709,16 +742,16 @@ class HTTYD(Tab, HTTYD_tab_class):
                     # print('frames without tracking {}'.format(frames_without_tracking))
 
                     if frames_without_tracking > lost_tracking_threshold and \
-                            self.flight_mode != FlightModeStates.GROUNDED:
-                        self.switch_flight_mode(FlightModeStates.DISCONNECTED)
-                        self.status = "Tracking lost, Disconnecting"
+                            self.flight_mode != FlightModeStates. GROUNDED:
+                        self.set_kill_engine()
+                        self.status = "Tracking lost, GROUNDED"
                         logger.info(self.status)
 
                 # If the cf is upside down, kill the motors
                 if (self.valid_cf_pos.roll > 120 or self.valid_cf_pos.roll < -120) and \
-                        self.flight_mode != FlightModeStates.GROUNDED:
-                    self.switch_flight_mode(FlightModeStates.DISCONNECTED)
-                    self.status = "Status: Upside down, Disconnecting"
+                        self.flight_mode != FlightModeStates. GROUNDED:
+                    self.set_kill_engine()
+                    self.status = "Status: Upside down, GROUNDED"
                     logger.info(self.status)
 
                 # Switch on the FlightModeState and take actions accordingly
@@ -867,9 +900,13 @@ class HTTYD(Tab, HTTYD_tab_class):
                         self.end_of_wand_R.z = self.valid_cf_pos_R.z + round(
                             math.sin(math.radians(self.valid_cf_pos_R.pitch)), 4) * self.length_from_wand
 
-                        self.mid_pos.x = self.end_of_wand_L.x + (.5) * (self.end_of_wand_R.x - self.end_of_wand_L.x)
-                        self.mid_pos.y = self.end_of_wand_L.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand_L.y)
-                        self.mid_pos.z = self.end_of_wand_L.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand_L.z)
+                        # self.mid_pos.x = self.end_of_wand_L.x + (.5) * (self.end_of_wand_R.x - self.end_of_wand_L.x)
+                        # self.mid_pos.y = self.end_of_wand_L.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand_L.y)
+                        # self.mid_pos.z = self.end_of_wand_L.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand_L.z)
+
+                        self.mid_pos.x = self.end_of_wand_L.x
+                        self.mid_pos.y = self.end_of_wand_L.y
+                        self.mid_pos.z = self.end_of_wand_L.z
 
                         current_distance = self.valid_cf_pos.distance_to(self.end_of_wand_L)
                         current_distance_R = self.valid_cf_pos.distance_to(self.end_of_wand_R)
@@ -1178,7 +1215,10 @@ class HTTYD(Tab, HTTYD_tab_class):
     def send_setpoint(self, pos):
         # Wraps the send command to the crazyflie
         if self._cf is not None:
-            self._cf.commander.send_position_setpoint(pos.x, pos.y, pos.z, pos.yaw)
+            if pos.z <= 0:
+                self._cf.commander.send_position_stoppoint()
+            else:
+                self._cf.commander.send_position_setpoint(pos.x, pos.y, pos.z, pos.yaw)
 
 
 class Position:
@@ -1205,6 +1245,5 @@ class Position:
     def __str__(self):
         return "x: {} y: {} z: {} Roll: {} Pitch: {} Yaw: {}".format(
             self.x, self.y, self.z, self.roll, self.pitch, self.yaw)
-
 
 
