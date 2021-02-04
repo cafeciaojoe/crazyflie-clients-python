@@ -60,4 +60,5 @@ available = [
     LighthouseTab,
     QualisysTab,
     LogClientTab,
+    HTTYD,
 ]
