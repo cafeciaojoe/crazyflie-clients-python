@@ -42,23 +42,24 @@ from .locopositioning_tab import LocoPositioningTab
 from .QualisysTab import QualisysTab
 from .LogClientTab import LogClientTab
 from .lighthouse_tab import LighthouseTab
+from .HTTYD import HTTYD
 
 __author__ = 'Bitcraze AB'
 __all__ = []
 
 available = [
-    ConsoleTab,
-    # ExampleTab,
-    FlightTab,
-    # GpsTab,
-    LEDTab,
-    LogBlockTab,
-    LogTab,
-    ParamTab,
-    PlotTab,
-    LocoPositioningTab,
-    LighthouseTab,
-    QualisysTab,
-    LogClientTab,
+    # ConsoleTab,
+    # # ExampleTab,
+    # # FlightTab,
+    # # GpsTab,
+    # LEDTab,
+    # LogBlockTab,
+    # LogTab,
+    # ParamTab,
+    # PlotTab,
+    # LocoPositioningTab,
+    # LighthouseTab,
+    # QualisysTab,
+    # LogClientTab,
     HTTYD,
 ]

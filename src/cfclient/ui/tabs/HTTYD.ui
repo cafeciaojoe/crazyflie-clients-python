@@ -19,7 +19,7 @@
      <item>
       <widget class="QGroupBox" name="LeftHandPositionBox">
        <property name="enabled">
-        <bool>false</bool>
+        <bool>true</bool>
        </property>
        <property name="sizePolicy">
         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
@@ -177,7 +177,7 @@
      <item>
       <widget class="QGroupBox" name="CfPositionBox">
        <property name="enabled">
-        <bool>false</bool>
+        <bool>true</bool>
        </property>
        <property name="sizePolicy">
         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
@@ -341,7 +341,7 @@
      <item>
       <widget class="QGroupBox" name="RightHandPositionBox">
        <property name="enabled">
-        <bool>false</bool>
+        <bool>true</bool>
        </property>
        <property name="sizePolicy">
         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">

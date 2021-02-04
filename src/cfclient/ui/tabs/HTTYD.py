@@ -900,24 +900,24 @@ class HTTYD(Tab, HTTYD_tab_class):
                         self.end_of_wand_R.z = self.valid_cf_pos_R.z + round(
                             math.sin(math.radians(self.valid_cf_pos_R.pitch)), 4) * self.length_from_wand
 
-                        # self.mid_pos.x = self.end_of_wand_L.x + (.5) * (self.end_of_wand_R.x - self.end_of_wand_L.x)
-                        # self.mid_pos.y = self.end_of_wand_L.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand_L.y)
-                        # self.mid_pos.z = self.end_of_wand_L.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand_L.z)
+                        self.mid_pos.x = self.end_of_wand_L.x + (.5) * (self.end_of_wand_R.x - self.end_of_wand_L.x)
+                        self.mid_pos.y = self.end_of_wand_L.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand_L.y)
+                        self.mid_pos.z = self.end_of_wand_L.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand_L.z)
 
-                        self.mid_pos.x = self.end_of_wand_L.x
-                        self.mid_pos.y = self.end_of_wand_L.y
-                        self.mid_pos.z = self.end_of_wand_L.z
+                        # self.mid_pos.x = self.end_of_wand_L.x
+                        # self.mid_pos.y = self.end_of_wand_L.y
+                        # self.mid_pos.z = self.end_of_wand_L.z
 
-                        current_distance = self.valid_cf_pos.distance_to(self.end_of_wand_L)
+                        current_distance_L = self.valid_cf_pos.distance_to(self.end_of_wand_L)
                         current_distance_R = self.valid_cf_pos.distance_to(self.end_of_wand_R)
                         current_distance_mid = self.valid_cf_pos.distance_to(self.mid_pos)
 
-                        smallest_distance = leeway
+                        smallest_distance_L = leeway
                         smallest_distance_R = leeway
                         smallest_distance_mid = leeway
 
-                        if current_distance < smallest_distance:
-                            smallest_distance = current_distance
+                        if current_distance_L < smallest_distance_L:
+                            smallest_distance = current_distance_L
 
                             # logger.info('smallest distance L {}'.format(smallest_distance))
 
@@ -1216,7 +1216,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         # Wraps the send command to the crazyflie
         if self._cf is not None:
             if pos.z <= 0:
-                self._cf.commander.send_position_stoppoint()
+                self._cf.commander.send_stop_setpoint()
             else:
                 self._cf.commander.send_position_setpoint(pos.x, pos.y, pos.z, pos.yaw)
 
