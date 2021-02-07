@@ -598,6 +598,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         self._event.set()
 
     def _flight_mode_follow_entered(self):
+        logger.info('Entering follow mode')
         # self.last_valid_wand_pos = Position(0, 0, 1)
         self._event.set()
 
@@ -625,10 +626,12 @@ class HTTYD(Tab, HTTYD_tab_class):
         try:
             logger.info('Starting flight logger thread for {}'.format(key))
 
-            log_angle = LogConfig(name='lighthouse', period_in_ms=1000)
+            log_angle = LogConfig(name='lighthouse', period_in_ms=50)
+            # below 50ms nans are called even though the cf can see the base station
+            # probably because it is logging the variable before it is updated.
             log_angle.add_variable('lighthouse.rawAngle0x', 'float')
-            log_angle.add_variable('lighthouse.rawAngle0y', 'float')
             log_angle.add_variable('lighthouse.rawAngle1x', 'float')
+            log_angle.add_variable('lighthouse.rawAngle0y', 'float')
             log_angle.add_variable('lighthouse.rawAngle1y', 'float')
 
             log_position = LogConfig(name='Position', period_in_ms=20)
@@ -642,7 +645,15 @@ class HTTYD(Tab, HTTYD_tab_class):
             rawAngle0x = [0, 0]
             rawAngle1x = [0, 0]
 
+            rawAngle0y = [0, 0]
+            rawAngle1y = [0, 0]
+
             state_estimate = [0, 0, 0, 0, 0, 0]
+
+            state_x = [0,0]
+
+            PowerSwitch(link_uri).stm_power_cycle()
+            time.sleep(1)
 
             # Default estimator is the EKF when using lighthouse deck
             # cf.param.set_value('stabilizer.estimator', '2')
@@ -683,16 +694,23 @@ class HTTYD(Tab, HTTYD_tab_class):
                         rawAngle0x.pop(0)
                         rawAngle1x.append(data_1['lighthouse.rawAngle1x'])
                         rawAngle1x.pop(0)
+                        # rawAngle0y.append(data_1['lighthouse.rawAngle0y'])
+                        # rawAngle0y.pop(0)
+                        # rawAngle1y.append(data_1['lighthouse.rawAngle1y'])
+                        # rawAngle1y.pop(0)
+
                         # if you cannot see ANY of the trackers.
-                        if rawAngle0x[0] == rawAngle0x[1] and rawAngle1x[0] == rawAngle1x[1]:
+                        # if rawAngle0x[0] == rawAngle0x[1] and rawAngle1x[0] == rawAngle1x[1]:
+                        if rawAngle0x[0] == rawAngle0x[1] and rawAngle1x[0] == rawAngle1x[1] and rawAngle0y[0] == rawAngle0y[1] and rawAngle1y[0] == rawAngle1y[1]:
                             self.cf_pos_dict[key] = Position(float('nan'), float('nan'), float('nan'))
-                            # print(key, 'nan')
+                            print(key, 'nan')
                             # self.cf_pos = Position(float('nan'), float('nan'), float('nan'))
                             # print(self.cf_pos.x, self.cf_pos.y, self.cf_pos.z)
 
                     if 'stateEstimate.x' in log_entry[1]:
                         # if you can see ANY of the trackers.
-                        if rawAngle0x[0] != rawAngle0x[1] or rawAngle1x[0] != rawAngle1x[1]:
+                        # if rawAngle0x[0] != rawAngle0x[1] or rawAngle1x[0] != rawAngle1x[1]:
+                        if rawAngle0x[0] != rawAngle0x[1] or rawAngle1x[0] != rawAngle1x[1] or rawAngle0y[0] != rawAngle0y[1] or rawAngle1y[0] != rawAngle1y[1]:
                             data_2 = log_entry[1]
                             state_estimate[0] = data_2['stateEstimate.x']
                             state_estimate[1] = data_2['stateEstimate.y']
@@ -702,6 +720,11 @@ class HTTYD(Tab, HTTYD_tab_class):
                             state_estimate[5] = data_2['stateEstimate.yaw']
                             self.cf_pos_dict[key] = Position(state_estimate[0], state_estimate[1], state_estimate[2],
                                                              state_estimate[3], state_estimate[4], state_estimate[5])
+                            if key == 'cf_pos_L':
+                                state_x.append(data_2['stateEstimate.x'])
+                                state_x.pop(0)
+                                # print('x pos difference', state_x[0] - state_x[1])
+
                             # print('updating state estimate to {}'.format(self.cf_pos))
 
                     # if any of the cf's leave the logger loop
@@ -709,8 +732,8 @@ class HTTYD(Tab, HTTYD_tab_class):
                     if not cf:
                         break
         finally:
-            print('Terminating flight logger thread:', cf)
-            # todo fix the problem where the state is not updated to 'logging after reconnecting' possibly restart the CF each time?
+            print('Terminating flight logger thread:', key)
+
 
     def flight_controller(self):
         try:
@@ -718,7 +741,7 @@ class HTTYD(Tab, HTTYD_tab_class):
 
             # The threshold for how many frames without tracking
             # is allowed before the cf's motors are stopped
-            lost_tracking_threshold = 100
+            lost_tracking_threshold = 1000
             frames_without_tracking = 0
             position_hold_timer = 0
             spin = 0
@@ -765,8 +788,7 @@ class HTTYD(Tab, HTTYD_tab_class):
                 self._event.wait()
 
                 if self.flight_mode == FlightModeStates.LAND:
-                    spin += 3.5
-                    print(spin)
+                    spin += 0
                     self.send_setpoint(
                         Position(
                             self.current_goal_pos.x,
@@ -796,46 +818,6 @@ class HTTYD(Tab, HTTYD_tab_class):
                         mode = FlightModeStates.GROUNDED
                         spin = 0
                         self.switch_flight_mode(mode)
-
-                elif self.flight_mode == FlightModeStates.PATH:
-
-                    self.send_setpoint(self.current_goal_pos)
-                    # Check if the cf has reached the goal position,
-                    # if it has set a new goal position
-                    if self.valid_cf_pos.distance_to(
-                            self.current_goal_pos) < self.path_pos_threshold:
-
-                        if position_hold_timer > self.position_hold_timelimit:
-
-                            current = self.flight_paths[
-                                self.pathSelector.currentIndex()]
-
-                            self.path_index += 1
-                            if self.path_index == len(current):
-                                self.path_index = 1
-                            position_hold_timer = 0
-
-                            self.current_goal_pos = Position(
-                                current[self.path_index][0],
-                                current[self.path_index][1],
-                                current[self.path_index][2],
-                                yaw=current[self.path_index][3])
-
-                            logger.info('Setting position {}'.format(
-                                self.current_goal_pos))
-                            self._flight_path_select_row.emit(
-                                self.path_index - 1)
-                        elif position_hold_timer == 0:
-
-                            time_of_pos_reach = time.time()
-                            # Add som time just to get going,
-                            # it will be overwritten in the next step.
-                            # Setting it higher than the limit
-                            # will break the code.
-                            position_hold_timer = 0.0001
-                        else:
-                            position_hold_timer = time.time(
-                            ) - time_of_pos_reach
 
                 elif self.flight_mode == FlightModeStates.CIRCLE:
                     self.send_setpoint(self.current_goal_pos)
@@ -882,7 +864,6 @@ class HTTYD(Tab, HTTYD_tab_class):
                             ) - time_of_pos_reach
 
                 elif self.flight_mode == FlightModeStates.FOLLOW:
-
                     if self.cf_pos_L.is_valid():
                         self.valid_cf_pos_L = self.cf_pos_L
 
@@ -891,127 +872,158 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                     if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
 
-                        """find the mid point between two points a certain distance away from the wands"""
-                        self.end_of_wand_L.x = self.valid_cf_pos_L.x + round(
-                            math.cos(math.radians(self.valid_cf_pos_L.yaw)), 4) * self.length_from_wand
-                        self.end_of_wand_L.y = self.valid_cf_pos_L.y + round(
-                            math.sin(math.radians(self.valid_cf_pos_L.yaw)), 4) * self.length_from_wand
-                        self.end_of_wand_L.z = self.valid_cf_pos_L.z + round(
-                            math.sin(math.radians(self.valid_cf_pos_L.pitch)), 4) * self.length_from_wand
+                        self.current_goal_pos.x = (self.valid_cf_pos_L.x + self.valid_cf_pos_R.x) / 2
+                        self.current_goal_pos.y = (self.valid_cf_pos_L.y + self.valid_cf_pos_R.y) / 2
+                        self.current_goal_pos.z = (self.valid_cf_pos_L.z + self.valid_cf_pos_R.z) / 2
 
-                        self.end_of_wand_R.x = self.valid_cf_pos_R.x + round(
-                            math.cos(math.radians(self.valid_cf_pos_R.yaw)), 4) * self.length_from_wand
-                        self.end_of_wand_R.y = self.valid_cf_pos_R.y + round(
-                            math.sin(math.radians(self.valid_cf_pos_R.yaw)), 4) * self.length_from_wand
-                        self.end_of_wand_R.z = self.valid_cf_pos_R.z + round(
-                            math.sin(math.radians(self.valid_cf_pos_R.pitch)), 4) * self.length_from_wand
+                        # self.current_goal_pos.x = self.valid_cf_pos_L.x
+                        # self.current_goal_pos.y = self.valid_cf_pos_L.y
+                        # self.current_goal_pos.z = .5
 
-                        self.mid_pos.x = self.end_of_wand_L.x + (.5) * (self.end_of_wand_R.x - self.end_of_wand_L.x)
-                        self.mid_pos.y = self.end_of_wand_L.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand_L.y)
-                        self.mid_pos.z = self.end_of_wand_L.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand_L.z)
-
-                        # self.mid_pos.x = self.end_of_wand_L.x
-                        # self.mid_pos.y = self.end_of_wand_L.y
-                        # self.mid_pos.z = self.end_of_wand_L.z
-
-                        current_distance_L = self.valid_cf_pos.distance_to(self.end_of_wand_L)
-                        current_distance_R = self.valid_cf_pos.distance_to(self.end_of_wand_R)
-                        current_distance_mid = self.valid_cf_pos.distance_to(self.mid_pos)
-
-                        smallest_distance_L = leeway
-                        smallest_distance_R = leeway
-                        smallest_distance_mid = leeway
-
-                        if current_distance_L < smallest_distance_L:
-                            smallest_distance = current_distance_L
-
-                            # logger.info('smallest distance L {}'.format(smallest_distance))
-
-                        if current_distance_R < smallest_distance_R:
-                            smallest_distance_R = current_distance_R
-
-                            # logger.info('smallest distance R {}'.format(smallest_distance_R))
-
-                        if current_distance_mid < smallest_distance_mid:
-                            smallest_distance_mid = current_distance_mid
-
-                            # logger.info('smallest distance R {}'.format(smallest_distance_R))
-
-                        # """set the led intensity as a function of the smallest distance between the ends of each wand and the drone found"""
-                        # self.led_intensity = self.led_intensity_max - round((self.led_intensity_max - self.led_intensity_min) * ((((smallest_distance + smallest_distance_R) / 2) / leeway)), 0)
-                        # # print("setting LED intensity to ", led_intensity)
-                        # self.set_led_intensity(self.led_intensity)
-
-                        # """set the led intensity as a function of the smallest distance between the midpoint and the drone found"""
-                        # self.led_intensity = self.led_intensity_max - round(
-                        #     (self.led_intensity_max - self.led_intensity_min) * (smallest_distance_mid / leeway), 0)
-                        # # print("setting LED intensity to ", led_intensity)
-                        # self.set_led_intensity(self.led_intensity)
-
-                        """if the next move is not too far away from the drone (ie too fast)"""
-                        if self.valid_cf_pos.distance_to(self.mid_pos) < leeway:
-                            """if the wand ends are close to each other and the midpoint is close to the drone"""
-                            # if self.end_of_wand.distance_to(self.end_of_wand_R) < leeway:
-
-                            self.current_goal_pos = self.mid_pos
-                            # self.colour_value -= .75
-                            # if self.colour_value <= 0:
-                            #     self.colour_value = 0
-                            # for x in range(12):
-                            #     self.set_led_color((255, self.colour_value, 255), x)
-
-                            # elif self.end_of_wand.distance_to(self.end_of_wand_R) > leeway:
-                            #     print('wands to wide')
-                            #     self.current_goal_pos = self.valid_cf_pos
-                            #
-                            #     self.colour_value += .75
-                            #     if self.colour_value >= 255:
-                            #         self.colour_value = 255
-                            #     for x in range(12):
-                            #         self.set_led_color((255, self.colour_value, 255), x)
-
-                        elif self.valid_cf_pos.distance_to(self.mid_pos) > leeway:
-                            self.current_goal_pos = self.valid_cf_pos
-                            print('drone too fast')
-                            # self.led_intensity -= .5
-                            # if self.led_intensity < self.led_intensity_min:
-                            #     self.led_intensity = self.led_intensity_min
-                            # self.set_led_intensity(self.led_intensity)
-                            # self.colour_value += .5
-                            # if self.colour_value >= 255:
-                            #     self.colour_value = 255
-                            # for x in range(12):
-                            #     self.set_led_color((255, self.colour_value, 255), x)
-
-                    else:
-                        self.current_goal_pos = self.valid_cf_pos
-                        print('wands not valid')
-                        # self.led_intensity -= .5
-                        # if self.led_intensity < self.led_intensity_min:
-                        #     self.led_intensity = self.led_intensity_min
-                        # self.set_led_intensity(self.led_intensity)
-                        # self.colour_value += .5
-                        # if self.colour_value >= 255:
-                        #     self.colour_value = 255
-                        # for x in range(12):
-                        #     self.set_led_color((255, self.colour_value, 255), x)
-
-                    if (self.current_goal_pos.x < -1):
-                        self.current_goal_pos.x = -1
-                    if (self.current_goal_pos.x > 1):
-                        self.current_goal_pos.x = 1
-                    if (self.current_goal_pos.y < -1):
-                        self.current_goal_pos.y = -1
-                    if (self.current_goal_pos.y > 1):
-                        self.current_goal_pos.y = 1
-                    if (self.current_goal_pos.z < 0):
-                        self.current_goal_pos.z = 0
-                    if (self.current_goal_pos.z > 1.7):
-                        self.current_goal_pos.z = 1.7
-                    if (self.current_goal_pos.z < .8):
-                        self.current_goal_pos.z = .8
+                        if self.current_goal_pos.z < .2:
+                            self.current_goal_pos.z = .2
 
                     self.send_setpoint(self.current_goal_pos)
+
+                    # if not self.cf_pos_L.is_valid():
+                    #     print(self.current_goal_pos.x, 'vs', self.valid_cf_pos_L.x)
+
+
+
+
+
+
+
+
+
+                    # if (self.current_goal_pos.x < -1):
+                    #     self.current_goal_pos.x = -1
+                    # if (self.current_goal_pos.x > 1):
+                    #     self.current_goal_pos.x = 1
+                    # if (self.current_goal_pos.y < -1):
+                    #     self.current_goal_pos.y = -1
+                    # if (self.current_goal_pos.y > 1):
+                    #     self.current_goal_pos.y = 1
+                    # if (self.current_goal_pos.z < 0):
+                    #     self.current_goal_pos.z = 0
+                    # if (self.current_goal_pos.z > 1.6):
+                    #     self.current_goal_pos.z = 1.6
+                    # if (self.current_goal_pos.z < .8):
+                    #     self.current_goal_pos.z = .8
+
+
+
+
+
+
+
+                    #
+                    #     """find the mid point between two points a certain distance away from the wands"""
+                    #     self.end_of_wand_L.x = self.valid_cf_pos_L.x + round(
+                    #         math.cos(math.radians(self.valid_cf_pos_L.yaw)), 4) * self.length_from_wand
+                    #     self.end_of_wand_L.y = self.valid_cf_pos_L.y + round(
+                    #         math.sin(math.radians(self.valid_cf_pos_L.yaw)), 4) * self.length_from_wand
+                    #     self.end_of_wand_L.z = self.valid_cf_pos_L.z + round(
+                    #         math.sin(math.radians(self.valid_cf_pos_L.pitch)), 4) * self.length_from_wand
+                    #
+                    #     self.end_of_wand_R.x = self.valid_cf_pos_R.x + round(
+                    #         math.cos(math.radians(self.valid_cf_pos_R.yaw)), 4) * self.length_from_wand
+                    #     self.end_of_wand_R.y = self.valid_cf_pos_R.y + round(
+                    #         math.sin(math.radians(self.valid_cf_pos_R.yaw)), 4) * self.length_from_wand
+                    #     self.end_of_wand_R.z = self.valid_cf_pos_R.z + round(
+                    #         math.sin(math.radians(self.valid_cf_pos_R.pitch)), 4) * self.length_from_wand
+                    #
+                    #     self.mid_pos.x = self.end_of_wand_L.x + (.5) * (self.end_of_wand_R.x - self.end_of_wand_L.x)
+                    #     self.mid_pos.y = self.end_of_wand_L.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand_L.y)
+                    #     self.mid_pos.z = self.end_of_wand_L.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand_L.z)
+                    #
+                    #     # self.mid_pos.x = self.end_of_wand_L.x
+                    #     # self.mid_pos.y = self.end_of_wand_L.y
+                    #     # self.mid_pos.z = self.end_of_wand_L.z
+                    #
+                    #     current_distance_L = self.valid_cf_pos.distance_to(self.end_of_wand_L)
+                    #     current_distance_R = self.valid_cf_pos.distance_to(self.end_of_wand_R)
+                    #     current_distance_mid = self.valid_cf_pos.distance_to(self.mid_pos)
+                    #
+                    #     smallest_distance_L = leeway
+                    #     smallest_distance_R = leeway
+                    #     smallest_distance_mid = leeway
+                    #
+                    #     if current_distance_L < smallest_distance_L:
+                    #         smallest_distance = current_distance_L
+                    #
+                    #         # logger.info('smallest distance L {}'.format(smallest_distance))
+                    #
+                    #     if current_distance_R < smallest_distance_R:
+                    #         smallest_distance_R = current_distance_R
+                    #
+                    #         # logger.info('smallest distance R {}'.format(smallest_distance_R))
+                    #
+                    #     if current_distance_mid < smallest_distance_mid:
+                    #         smallest_distance_mid = current_distance_mid
+                    #
+                    #         # logger.info('smallest distance R {}'.format(smallest_distance_R))
+                    #
+                    #     # """set the led intensity as a function of the smallest distance between the ends of each wand and the drone found"""
+                    #     # self.led_intensity = self.led_intensity_max - round((self.led_intensity_max - self.led_intensity_min) * ((((smallest_distance + smallest_distance_R) / 2) / leeway)), 0)
+                    #     # # print("setting LED intensity to ", led_intensity)
+                    #     # self.set_led_intensity(self.led_intensity)
+                    #
+                    #     # """set the led intensity as a function of the smallest distance between the midpoint and the drone found"""
+                    #     # self.led_intensity = self.led_intensity_max - round(
+                    #     #     (self.led_intensity_max - self.led_intensity_min) * (smallest_distance_mid / leeway), 0)
+                    #     # # print("setting LED intensity to ", led_intensity)
+                    #     # self.set_led_intensity(self.led_intensity)
+                    #
+                    #     """if the next move is not too far away from the drone (ie too fast)"""
+                    #     if self.valid_cf_pos.distance_to(self.mid_pos) < leeway:
+                    #         """if the wand ends are close to each other and the midpoint is close to the drone"""
+                    #         # if self.end_of_wand.distance_to(self.end_of_wand_R) < leeway:
+                    #
+                    #         self.current_goal_pos = self.mid_pos
+                    #         # self.colour_value -= .75
+                    #         # if self.colour_value <= 0:
+                    #         #     self.colour_value = 0
+                    #         # for x in range(12):
+                    #         #     self.set_led_color((255, self.colour_value, 255), x)
+                    #
+                    #         # elif self.end_of_wand.distance_to(self.end_of_wand_R) > leeway:
+                    #         #     print('wands to wide')
+                    #         #     self.current_goal_pos = self.valid_cf_pos
+                    #         #
+                    #         #     self.colour_value += .75
+                    #         #     if self.colour_value >= 255:
+                    #         #         self.colour_value = 255
+                    #         #     for x in range(12):
+                    #         #         self.set_led_color((255, self.colour_value, 255), x)
+                    #
+                    #     elif self.valid_cf_pos.distance_to(self.mid_pos) > leeway:
+                    #         self.current_goal_pos = self.valid_cf_pos
+                    #         print('drone too fast')
+                    #         # self.led_intensity -= .5
+                    #         # if self.led_intensity < self.led_intensity_min:
+                    #         #     self.led_intensity = self.led_intensity_min
+                    #         # self.set_led_intensity(self.led_intensity)
+                    #         # self.colour_value += .5
+                    #         # if self.colour_value >= 255:
+                    #         #     self.colour_value = 255
+                    #         # for x in range(12):
+                    #         #     self.set_led_color((255, self.colour_value, 255), x)
+                    #
+                    # else:
+                    #     self.current_goal_pos = self.valid_cf_pos
+                    #     print('wands not valid')
+                    #     # self.led_intensity -= .5
+                    #     # if self.led_intensity < self.led_intensity_min:
+                    #     #     self.led_intensity = self.led_intensity_min
+                    #     # self.set_led_intensity(self.led_intensity)
+                    #     # self.colour_value += .5
+                    #     # if self.colour_value >= 255:
+                    #     #     self.colour_value = 255
+                    #     # for x in range(12):
+                    #     #     self.set_led_color((255, self.colour_value, 255), x)
+                    #
+
 
                 elif self.flight_mode == FlightModeStates.LIFT:
 
@@ -1031,59 +1043,7 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                 elif self.flight_mode == FlightModeStates.HOVERING:
                     self.send_setpoint(self.current_goal_pos)
-
-                elif self.flight_mode == FlightModeStates.RECORD:
-
-                    if self.valid_cf_pos.z > 1.0 and not self.recording:
-                        # Start recording when the cf is lifted
-                        self.recording = True
-                        # Start the timer thread
-                        self.save_current_position()
-                        # Gui
-                        self.status = "Recording Flightpath"
-                        logger.info(self.status)
-
-                    elif self.valid_cf_pos.z < 0.03 and self.recording:
-                        # Stop the recording when the cf is put on
-                        # the ground again
-                        logger.info("Recording stopped")
-                        self.recording = False
-
-                        # Remove the last bit (1s) of the recording,
-                        # containing setting the cf down
-                        for self.path_index in range(20):
-                            self.new_path.pop()
-
-                        # Add the new path to list and Gui
-                        now = datetime.datetime.fromtimestamp(time.time())
-
-                        new_name = ("Recording {}/{}/{} {}:{}".format(
-                            now.year - 2000, now.month
-                            if now.month > 9 else "0{}".format(now.month),
-                            now.day if now.day > 9 else "0{}".format(now.day),
-                            now.hour if now.hour > 9 else "0{}".format(
-                                now.hour), now.minute
-                            if now.minute > 9 else "0{}".format(now.minute)))
-
-                        self.new_path.insert(0, new_name)
-                        self.flight_paths.append(self.new_path)
-                        self._path_selector_add_item.emit(new_name)
-
-                        # Select the new path
-                        self._path_selector_set_index.emit(
-                            len(self.flight_paths) - 1)
-                        self.path_changed()
-                        Config().set("flight_paths", self.flight_paths)
-
-                        # Wait while the operator moves away
-                        self.status = "Replay in 3s"
-                        time.sleep(1)
-                        self.status = "Replay in 2s"
-                        time.sleep(1)
-                        self.status = "Replay in 1s"
-                        time.sleep(1)
-                        # Switch to path mode and replay the recording
-                        self.switch_flight_mode(FlightModeStates.PATH)
+                    print(self.current_goal_pos.x, self.current_goal_pos.y, self.current_goal_pos.z)
 
                 elif self.flight_mode == FlightModeStates.GROUNDED:
                     pass  # If gounded, the control is switched back to gamepad
