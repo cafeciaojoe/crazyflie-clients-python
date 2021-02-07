@@ -44,6 +44,11 @@ from cflib.crazyflie.syncLogger import SyncLogger
 from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
 from cflib.crazyflie import Crazyflie
 
+from cfclient.utils.config import Config
+from cflib.utils.power_switch import PowerSwitch
+
+
+
 import threading
 
 __author__ = 'Bitcraze AB'
@@ -146,6 +151,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         self._cf_L = None
         self._cf_R = None
 
+        # self.uri gets passedin in from main.py upon connection
         self.uri_L = 'radio://0/80/2M/E7E7E7E7ED'
         self.uri_R = 'radio://0/80/2M/A0A0A0A0AA'
 
@@ -431,7 +437,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         self._helper_L.open_link(self.uri_L)
         self._helper_R.open_link(self.uri_R)
 
-        self.t2 = threading.Thread(target=self.flight_logger, args=(self._helper.cf, 'cf_pos'))
+        self.t2 = threading.Thread(target=self.flight_logger, args=(self._helper.cf, 'cf_pos',link_uri))
         self.t2.start()
 
         self._ui_update_timer.start(200)
@@ -484,7 +490,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         logger.debug("Crazyflie '_cf_L' connected to {}".format(link_uri))
         self.cfStatus_L = ': connected'
 
-        self.t3 = threading.Thread(target=self.flight_logger, args=(self._helper_L, 'cf_pos_L'))
+        self.t3 = threading.Thread(target=self.flight_logger, args=(self._helper_L, 'cf_pos_L',link_uri))
         self.t3.start()
 
     def _disconnected_L(self, link_uri):
@@ -524,7 +530,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         # Gui
         self.cfStatus_R = ': connected'
 
-        self.t4 = threading.Thread(target=self.flight_logger, args=(self._helper_R, 'cf_pos_R'))
+        self.t4 = threading.Thread(target=self.flight_logger, args=(self._helper_R, 'cf_pos_R',link_uri))
         self.t4.start()
 
     def _disconnected_R(self, link_uri):
@@ -615,7 +621,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         self._event.set()
         print('flight_mode_disconnected_entered')
 
-    def flight_logger(self, cf, key):
+    def flight_logger(self, cf, key, link_uri):
         try:
             logger.info('Starting flight logger thread for {}'.format(key))
 
