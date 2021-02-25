@@ -35,15 +35,23 @@ import logging
 from PyQt5 import uic
 from PyQt5.QtCore import pyqtSignal, QTimer
 from PyQt5.QtGui import QMessageBox
+from PyQt5.QtWidgets import QFileDialog
 
 import cfclient
 from cfclient.ui.tab import Tab
 
-from cflib.crazyflie.mem.lighthouse_memory import LighthouseMemHelper
+from cflib.crazyflie.log import LogConfig
+from cflib.crazyflie.mem import LighthouseMemHelper
+from cflib.localization import LighthouseConfigWriter
+from cflib.localization import LighthouseConfigFileManager
+
+from cfclient.ui.dialogs.lighthouse_bs_geometry_dialog import LighthouseBsGeometryDialog
+from cfclient.ui.dialogs.basestation_mode_dialog import LighthouseBsModeDialog
 
 from vispy import scene
 import numpy as np
 import math
+import os
 
 __author__ = 'Bitcraze AB'
 __all__ = ['LighthouseTab']
@@ -55,6 +63,8 @@ lighthouse_tab_class = uic.loadUiType(
 
 STYLE_RED_BACKGROUND = "background-color: lightpink;"
 STYLE_GREEN_BACKGROUND = "background-color: lightgreen;"
+STYLE_BLUE_BACKGROUND = "background-color: lightblue;"
+STYLE_ORANGE_BACKGROUND = "background-color: orange;"
 STYLE_NO_BACKGROUND = "background-color: none;"
 
 
@@ -124,9 +134,15 @@ class MarkerPose():
         if self._label:
             self._label.parent = None
 
+    def set_color(self, color):
+        self._color = color
+        self._marker.set_data(face_color=self._color)
+
 
 class Plot3dLighthouse(scene.SceneCanvas):
     POSITION_BRUSH = np.array((0, 0, 1.0))
+    BS_BRUSH_VISIBLE = np.array((0.2, 0.5, 0.2))
+    BS_BRUSH_NOT_VISIBLE = np.array((0.8, 0.5, 0.5))
 
     VICINITY_DISTANCE = 2.5
     HIGHLIGHT_DISTANCE = 0.5
@@ -214,9 +230,16 @@ class Plot3dLighthouse(scene.SceneCanvas):
     def update_base_station_geos(self, geos):
         for id, geo in geos.items():
             if (geo is not None) and (id not in self._base_stations):
-                self._base_stations[id] = MarkerPose(self._view.scene, self.POSITION_BRUSH, text=f"{id}")
+                self._base_stations[id] = MarkerPose(self._view.scene, self.BS_BRUSH_NOT_VISIBLE, text=f"{id}")
 
             self._base_stations[id].set_pose(geo.origin, geo.rotation_matrix)
+
+    def update_base_station_visibility(self, visibility):
+        for id, bs in self._base_stations.items():
+            if id in visibility:
+                bs.set_color(self.BS_BRUSH_VISIBLE)
+            else:
+                bs.set_color(self.BS_BRUSH_NOT_VISIBLE)
 
     def clear(self):
         if self._cf:
@@ -240,10 +263,27 @@ class LighthouseTab(Tab, lighthouse_tab_class):
     # Frame rate (updates per second)
     FPS = 2
 
+    STATUS_NOT_RECEIVING = 0
+    STATUS_MISSING_DATA = 1
+    STATUS_TO_ESTIMATOR = 2
+
+    # TODO change these names to something more logical
+    LOG_STATUS = "lighthouse.status"
+    LOG_RECEIVE = "lighthouse.bsReceive"
+    LOG_CALIBRATION_EXISTS = "lighthouse.bsCalVal"
+    LOG_CALIBRATION_CONFIRMED = "lighthouse.bsCalCon"
+    LOG_CALIBRATION_UPDATED = "lighthouse.bsCalUd"
+    LOG_GEOMETERY_EXISTS = "lighthouse.bsGeoVal"
+    LOG_ACTIVE = "lighthouse.bsActive"
+
     _connected_signal = pyqtSignal(str)
     _disconnected_signal = pyqtSignal(str)
     _log_error_signal = pyqtSignal(object, str)
     _cb_param_to_detect_lighthouse_deck_signal = pyqtSignal(object, object)
+    _status_report_signal = pyqtSignal(int, object, object)
+    _new_system_config_written_to_cf_signal = pyqtSignal(bool)
+    _geometry_read_signal = pyqtSignal(object)
+    _calibration_read_signal = pyqtSignal(object)
 
     def __init__(self, tabWidget, helper, *args):
         super(LighthouseTab, self).__init__(*args)
@@ -259,29 +299,82 @@ class LighthouseTab(Tab, lighthouse_tab_class):
         # to avoid manipulating the UI when rendering it
         self._connected_signal.connect(self._connected)
         self._disconnected_signal.connect(self._disconnected)
+        self._log_error_signal.connect(self._logging_error)
         self._cb_param_to_detect_lighthouse_deck_signal.connect(
             self._cb_param_to_detect_lighthouse_deck)
+        self._status_report_signal.connect(self._status_report_received)
+        self._new_system_config_written_to_cf_signal.connect(self._new_system_config_written_to_cf)
+        self._geometry_read_signal.connect(self._geometry_read_cb)
+        self._calibration_read_signal.connect(self._calibration_read_cb)
 
         # Connect the Crazyflie API callbacks to the signals
-        self._helper.cf.connected.add_callback(
-            self._connected_signal.emit)
-
-        self._helper.cf.disconnected.add_callback(
-            self._disconnected_signal.emit)
+        self._helper.cf.connected.add_callback(self._connected_signal.emit)
+        self._helper.cf.disconnected.add_callback(self._disconnected_signal.emit)
 
         self._set_up_plots()
 
         self.is_lighthouse_deck_active = False
 
         self._lh_memory_helper = None
+        self._lh_config_writer = None
         self._lh_geos = {}
+
+        self._bs_receives_light = set()
+        self._bs_calibration_data_exists = set()
+        self._bs_calibration_data_confirmed = set()
+        self._bs_calibration_data_updated = set()
+        self._bs_geometry_data_exists = set()
+        self._bs_data_to_estimator = set()
+
+        self._clear_state_indicator()
+
+        self._bs_stats = [
+            self._bs_receives_light,
+            self._bs_calibration_data_exists,
+            self._bs_calibration_data_confirmed,
+            self._bs_calibration_data_updated,
+            self._bs_geometry_data_exists,
+            self._bs_data_to_estimator]
+
+        self._lh_status = self.STATUS_NOT_RECEIVING
 
         self._graph_timer = QTimer()
         self._graph_timer.setInterval(1000 / self.FPS)
         self._graph_timer.timeout.connect(self._update_graphics)
         self._graph_timer.start()
 
-        self._update_position_label(self._helper.pose_logger.position)
+        self._basestation_geometry_dialog = LighthouseBsGeometryDialog(self)
+        self._basestation_mode_dialog = LighthouseBsModeDialog(self)
+
+        self._manage_estimate_geometry_button.clicked.connect(self._show_basestation_geometry_dialog)
+        self._manage_basestation_mode_button.clicked.connect(self._show_basestation_mode_dialog)
+
+        self._load_sys_config_button.clicked.connect(self._load_sys_config_button_clicked)
+        self._save_sys_config_button.clicked.connect(self._save_sys_config_button_clicked)
+
+        self._current_folder = os.path.expanduser('~')
+
+        self._is_connected = False
+        self._update_ui()
+
+    def write_and_store_geometry(self, geometries):
+        if self._lh_config_writer:
+            self._lh_config_writer.write_and_store_config(self._new_system_config_written_to_cf_signal.emit,
+                                                          geos=geometries)
+
+    def _new_system_config_written_to_cf(self, success):
+        # Reset the bit fields for calibration data status to get a fresh view on
+        self._helper.cf.param.set_value("lighthouse.bsCalibReset", '1')
+        # New geo data has been written and stored in the CF, read it back to update the UI
+        self._start_read_of_geo_data()
+
+    def _show_basestation_geometry_dialog(self):
+        self._basestation_geometry_dialog.reset()
+        self._basestation_geometry_dialog.show()
+
+    def _show_basestation_mode_dialog(self):
+        self._basestation_mode_dialog.reset()
+        self._basestation_mode_dialog.show()
 
     def _set_up_plots(self):
         self._plot_3d = Plot3dLighthouse()
@@ -291,6 +384,9 @@ class LighthouseTab(Tab, lighthouse_tab_class):
         """Callback when the Crazyflie has been connected"""
         logger.info("Crazyflie connected to {}".format(link_uri))
         self._request_param_to_detect_lighthouse_deck()
+        self._basestation_geometry_dialog.reset()
+        self._is_connected = True
+        self._update_ui()
 
     def _request_param_to_detect_lighthouse_deck(self):
         """Send a parameter request to detect if the Lighthouse deck is
@@ -320,20 +416,97 @@ class LighthouseTab(Tab, lighthouse_tab_class):
         if not self.is_lighthouse_deck_active:
             self.is_lighthouse_deck_active = True
 
-            # Update basestation position
+            try:
+                self._register_logblock(
+                    "lhStatus",
+                    [self.LOG_STATUS, self.LOG_RECEIVE, self.LOG_CALIBRATION_EXISTS, self.LOG_CALIBRATION_CONFIRMED,
+                        self.LOG_CALIBRATION_UPDATED, self.LOG_GEOMETERY_EXISTS, self.LOG_ACTIVE],
+                    self._status_report_signal.emit,
+                    self._log_error_signal.emit)
+            except KeyError as e:
+                logger.warning(str(e))
+            except AttributeError as e:
+                logger.warning(str(e))
+
+            # Now that we know we have a lighthouse deck, setup the memory helper and config writer
             self._lh_memory_helper = LighthouseMemHelper(self._helper.cf)
-            self._lh_memory_helper.read_all_geos(self._geometry_read_cb)
+            self._lh_config_writer = LighthouseConfigWriter(self._helper.cf)
+            self._start_read_of_geo_data()
+
+        self._update_ui()
+
+    def _start_read_of_geo_data(self):
+        self._lh_memory_helper.read_all_geos(self._geometry_read_signal.emit)
 
     def _geometry_read_cb(self, geometries):
-        # Do something with it ....
-        self._lh_geos = geometries
+        # Remove any geo data where the valid flag is False
+        self._lh_geos = dict(filter(lambda key_value: key_value[1].valid, geometries.items()))
+        self._basestation_geometry_dialog.geometry_updated(self._lh_geos)
+
+    def _adjust_bitmask(self, bit_mask, bs_list):
+        for id in range(16):
+            if bit_mask & (1 << id):
+                bs_list.add(id)
+            else:
+                if id in bs_list:
+                    bs_list.remove(id)
+        self._update_basestation_status_indicators()
+
+    def _status_report_received(self, timestamp, data, logconf):
+        """Callback from the logging system when the status is updated."""
+
+        if self.LOG_RECEIVE in data:
+            bit_mask = data[self.LOG_RECEIVE]
+            self._adjust_bitmask(bit_mask, self._bs_receives_light)
+        if self.LOG_CALIBRATION_EXISTS in data:
+            bit_mask = data[self.LOG_CALIBRATION_EXISTS]
+            self._adjust_bitmask(bit_mask, self._bs_calibration_data_exists)
+        if self.LOG_CALIBRATION_CONFIRMED in data:
+            bit_mask = data[self.LOG_CALIBRATION_CONFIRMED]
+            self._adjust_bitmask(bit_mask, self._bs_calibration_data_confirmed)
+        if self.LOG_CALIBRATION_UPDATED in data:
+            bit_mask = data[self.LOG_CALIBRATION_UPDATED]
+            self._adjust_bitmask(bit_mask, self._bs_calibration_data_updated)
+        if self.LOG_GEOMETERY_EXISTS in data:
+            bit_mask = data[self.LOG_GEOMETERY_EXISTS]
+            self._adjust_bitmask(bit_mask, self._bs_geometry_data_exists)
+        if self.LOG_ACTIVE in data:
+            bit_mask = data[self.LOG_ACTIVE]
+            self._adjust_bitmask(bit_mask, self._bs_data_to_estimator)
+
+        if self.LOG_STATUS in data:
+            self._lh_status = data[self.LOG_STATUS]
 
     def _disconnected(self, link_uri):
         """Callback for when the Crazyflie has been disconnected"""
         logger.debug("Crazyflie disconnected from {}".format(link_uri))
         self._clear_state()
+        self._update_graphics()
         self._plot_3d.clear()
+        self._basestation_geometry_dialog.close()
         self.is_lighthouse_deck_active = False
+        self._is_connected = False
+        self._update_ui()
+
+    def _register_logblock(self, logblock_name, variables, data_cb, error_cb,
+                           update_period=UPDATE_PERIOD_LOG):
+        """Register log data to listen for. One logblock can only contain a limited
+        number of parameters."""
+        lg = LogConfig(logblock_name, update_period)
+        for variable in variables:
+            if self._is_in_log_toc(variable):
+                lg.add_variable(variable)
+
+        self._helper.cf.log.add_config(lg)
+        lg.data_received_cb.add_callback(data_cb)
+        lg.error_cb.add_callback(error_cb)
+        lg.start()
+        return lg
+
+    def _is_in_log_toc(self, variable):
+        toc = self._helper.cf.log.toc
+        group, param = variable.split('.')
+        return group in toc.toc and param in toc.toc[group]
 
     def _is_in_param_toc(self, group, param):
         toc = self._helper.cf.param.toc
@@ -348,9 +521,17 @@ class LighthouseTab(Tab, lighthouse_tab_class):
     def _update_graphics(self):
         if self.is_visible() and self.is_lighthouse_deck_active:
             self._plot_3d.update_cf_pose(self._helper.pose_logger.position,
-                                         self._rpy_to_rot(self._helper.pose_logger.rpy))
+                                         self._rpy_to_rot(self._helper.pose_logger.rpy_rad))
             self._plot_3d.update_base_station_geos(self._lh_geos)
+            self._plot_3d.update_base_station_visibility(self._bs_data_to_estimator)
             self._update_position_label(self._helper.pose_logger.position)
+            self._update_status_label(self._lh_status)
+
+    def _update_ui(self):
+        enabled = self._is_connected and self.is_lighthouse_deck_active
+        self._manage_estimate_geometry_button.setEnabled(enabled)
+        self._load_sys_config_button.setEnabled(enabled)
+        self._save_sys_config_button.setEnabled(enabled)
 
     def _update_position_label(self, position):
         if len(position) == 3:
@@ -361,9 +542,37 @@ class LighthouseTab(Tab, lighthouse_tab_class):
 
         self._status_position.setText(coordinate)
 
+    def _update_status_label(self, status):
+        text = ''
+        if status == self.STATUS_NOT_RECEIVING:
+            text = 'Not receiving'
+        elif status == self.STATUS_MISSING_DATA:
+            text = 'No geo/calib'
+        elif status == self.STATUS_TO_ESTIMATOR:
+            text = 'LH ready'
+
+        self._status_status.setText(text)
+
     def _clear_state(self):
         self._lh_memory_helper = None
+        self._lh_config_writer = None
         self._lh_geos = {}
+        self._bs_receives_light.clear()
+        self._bs_calibration_data_exists.clear()
+        self._bs_calibration_data_confirmed.clear()
+        self._bs_calibration_data_updated.clear()
+        self._bs_geometry_data_exists.clear()
+        self._bs_data_to_estimator.clear()
+        self._update_basestation_status_indicators()
+        self._clear_state_indicator()
+        self._lh_status = self.STATUS_NOT_RECEIVING
+
+    def _clear_state_indicator(self):
+        container = self._basestation_stats_container
+        for row in range(1, 3):
+            for col in range(1, 5):
+                color_label = container.itemAtPosition(row, col).widget()
+                color_label.setStyleSheet(STYLE_NO_BACKGROUND)
 
     def _rpy_to_rot(self, rpy):
         # http://planning.cs.uiuc.edu/node102.html
@@ -386,3 +595,80 @@ class LighthouseTab(Tab, lighthouse_tab_class):
         ]
 
         return np.array(r)
+
+    def _update_basestation_status_indicators(self):
+        """Handling the basestation status label handles to indicate
+            the state of received data per basestation"""
+        container = self._basestation_stats_container
+
+        # Ports the label number to the first index of the statistic id
+        stats_id_port = {1: 0, 2: 1, 3: 4, 4: 5}
+
+        for bs in range(2):
+            for stats_indicator_id in range(1, 5):
+                bs_indicator_id = bs + 1
+                label = container.itemAtPosition(bs_indicator_id, stats_indicator_id).widget()
+                stats_id = stats_id_port.get(stats_indicator_id)
+                temp_set = self._bs_stats[stats_id]
+
+                if bs in temp_set:
+                    # If the status bar for calibration data is handled, have an intermeddiate status
+                    # else just have red or green.
+                    if stats_indicator_id == 2:
+                        label.setStyleSheet(STYLE_BLUE_BACKGROUND)
+                        label.setToolTip('Calibration data from cache')
+
+                        calib_confirm = bs in self._bs_stats[stats_id + 1]
+                        calib_updated = bs in self._bs_stats[stats_id + 2]
+
+                        if calib_confirm:
+                            label.setStyleSheet(STYLE_GREEN_BACKGROUND)
+                            label.setToolTip('Calibration data verified')
+                        if calib_updated:
+                            label.setStyleSheet(STYLE_ORANGE_BACKGROUND)
+                            label.setToolTip('Calibration data updated, the geometry probably needs to be re-estimated')
+                    else:
+                        label.setStyleSheet(STYLE_GREEN_BACKGROUND)
+                else:
+                    label.setStyleSheet(STYLE_RED_BACKGROUND)
+                    label.setToolTip('')
+
+    def _load_sys_config_button_clicked(self):
+        names = QFileDialog.getOpenFileName(self, 'Open file',
+                                            self._current_folder,
+                                            "*.yaml;;*.*")
+
+        if names[0] == '':
+            return
+
+        self._current_folder = os.path.dirname(names[0])
+
+        if self._lh_config_writer is not None:
+            self._lh_config_writer.write_and_store_config_from_file(self._new_system_config_written_to_cf_signal.emit,
+                                                                    names[0])
+
+    def _save_sys_config_button_clicked(self):
+        # Get calibration data from the Crazyflie to complete the system config data set
+        # When the data is ready we get a callback on _calibration_read
+        self._lh_memory_helper.read_all_calibs(self._calibration_read_signal.emit)
+
+    def _calibration_read_cb(self, calibs):
+        # Got calibration data from the CF, we have the full system configuration
+        self._save_sys_config(self._lh_geos, calibs)
+
+    def _save_sys_config(self, geos, calibs):
+        names = QFileDialog.getSaveFileName(self, 'Save file',
+                                            self._current_folder,
+                                            "*.yaml;;*.*")
+
+        if names[0] == '':
+            return
+
+        self._current_folder = os.path.dirname(names[0])
+
+        if not names[0].endswith(".yaml") and names[0].find(".") < 0:
+            filename = names[0] + ".yaml"
+        else:
+            filename = names[0]
+
+        LighthouseConfigFileManager.write(filename, geos, calibs)
