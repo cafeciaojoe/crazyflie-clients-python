@@ -42,6 +42,7 @@ from .locopositioning_tab import LocoPositioningTab
 from .QualisysTab import QualisysTab
 from .LogClientTab import LogClientTab
 from .lighthouse_tab import LighthouseTab
+from .lighthouse_viewer import LighthouseViewer
 from .HTTYD import HTTYD
 
 __author__ = 'Bitcraze AB'
@@ -58,7 +59,8 @@ available = [
     ParamTab,
     PlotTab,
     LocoPositioningTab,
-    LighthouseTab,
+    # LighthouseTab,
+    LighthouseViewer,
     QualisysTab,
     LogClientTab,
     # HTTYD,

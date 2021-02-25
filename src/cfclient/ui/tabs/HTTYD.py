@@ -170,18 +170,18 @@ class HTTYD(Tab, HTTYD_tab_class):
         # lighthouse tracking, if it cant be tracked the position becomes Nan
         # cf_pos_dict is what is updated by the three async flight logger calls.
         # they need to be unpacked at the top of the flight controller loop
-        self.cf_pos_dict = {'cf_pos': Position(float('nan'), float('nan'), float('nan')),
-                            'cf_pos_L': Position(float('nan'), float('nan'), float('nan')),
-                            'cf_pos_R': Position(float('nan'), float('nan'), float('nan'))}
+        self.cf_pos_dict = {'cf_pos': Position(0, 0, 0),
+                            'cf_pos_L': Position(0, 0, 0),
+                            'cf_pos_R': Position(0, 0, 0)}
         self.cf_pos = Position(0, 0, 0)
         self.cf_pos_L = Position(0, 0, 0)
         self.cf_pos_R = Position(0, 0, 0)
 
         # The regular cf_pos can a times due to lost tracing become Nan,
         # this the latest known valid cf position
-        self.valid_cf_pos = Position(float('nan'), float('nan'), float('nan'))
-        self.valid_cf_pos_L = Position(float('nan'), float('nan'), float('nan'))
-        self.valid_cf_pos_R = Position(float('nan'), float('nan'), float('nan'))
+        self.valid_cf_pos = Position(0, 0, 0)
+        self.valid_cf_pos_L = Position(0, 0, 0)
+        self.valid_cf_pos_R = Position(0, 0, 0)
 
         self.end_of_wand_L = Position(0, 0, 0)
         self.end_of_wand_R = Position(0, 0, 0)
@@ -629,12 +629,12 @@ class HTTYD(Tab, HTTYD_tab_class):
             log_angle = LogConfig(name='lighthouse', period_in_ms=50)
             # below 50ms nans are called even though the cf can see the base station
             # probably because it is logging the variable before it is updated.
-            log_angle.add_variable('lighthouse.rawAngle0x', 'float')
-            log_angle.add_variable('lighthouse.rawAngle1x', 'float')
-            log_angle.add_variable('lighthouse.rawAngle0y', 'float')
-            log_angle.add_variable('lighthouse.rawAngle1y', 'float')
+            log_angle.add_variable('lighthouse.rawAngle0xlh2', 'float')
+            log_angle.add_variable('lighthouse.rawAngle1xlh2', 'float')
+            log_angle.add_variable('lighthouse.rawAngle0ylh2', 'float')
+            log_angle.add_variable('lighthouse.rawAngle1ylh2', 'float')
 
-            log_position = LogConfig(name='Position', period_in_ms=20)
+            log_position = LogConfig(name='Position', period_in_ms=1000)
             log_position.add_variable('stateEstimate.x', 'float')
             log_position.add_variable('stateEstimate.y', 'float')
             log_position.add_variable('stateEstimate.z', 'float')
@@ -687,30 +687,31 @@ class HTTYD(Tab, HTTYD_tab_class):
 
             with SyncLogger(cf, [log_angle, log_position]) as log:
                 for log_entry in log:
-                    # print(key)
-                    if 'lighthouse.rawAngle0x' in log_entry[1]:
-                        data_1 = log_entry[1]
-                        rawAngle0x.append(data_1['lighthouse.rawAngle0x'])
-                        rawAngle0x.pop(0)
-                        rawAngle1x.append(data_1['lighthouse.rawAngle1x'])
-                        rawAngle1x.pop(0)
-                        # rawAngle0y.append(data_1['lighthouse.rawAngle0y'])
-                        # rawAngle0y.pop(0)
-                        # rawAngle1y.append(data_1['lighthouse.rawAngle1y'])
-                        # rawAngle1y.pop(0)
-
-                        # if you cannot see ANY of the trackers.
-                        # if rawAngle0x[0] == rawAngle0x[1] and rawAngle1x[0] == rawAngle1x[1]:
-                        if rawAngle0x[0] == rawAngle0x[1] and rawAngle1x[0] == rawAngle1x[1] and rawAngle0y[0] == rawAngle0y[1] and rawAngle1y[0] == rawAngle1y[1]:
-                            self.cf_pos_dict[key] = Position(float('nan'), float('nan'), float('nan'))
-                            print(key, 'nan')
-                            # self.cf_pos = Position(float('nan'), float('nan'), float('nan'))
-                            # print(self.cf_pos.x, self.cf_pos.y, self.cf_pos.z)
+                    # print(log_entry[1],key)
+                    # if 'lighthouse.rawAngle0xlh2' in log_entry[1]:
+                    #     data_1 = log_entry[1]
+                    #     rawAngle0x.append(data_1['lighthouse.rawAngle0xlh2'])
+                    #     rawAngle0x.pop(0)
+                    #     rawAngle1x.append(data_1['lighthouse.rawAngle1xlh2'])
+                    #     rawAngle1x.pop(0)
+                    #     rawAngle0y.append(data_1['lighthouse.rawAngle0ylh2'])
+                    #     rawAngle0y.pop(0)
+                    #     rawAngle1y.append(data_1['lighthouse.rawAngle1ylh2'])
+                    #     rawAngle1y.pop(0)
+                    #
+                    #     # if you cannot see ANY of the trackers.
+                    #     # if rawAngle0x[0] == rawAngle0x[1] and rawAngle1x[0] == rawAngle1x[1]:
+                    #     if rawAngle0x[0] == rawAngle0x[1] and rawAngle1x[0] == rawAngle1x[1] and rawAngle0y[0] == rawAngle0y[1] and rawAngle1y[0] == rawAngle1y[1]:
+                    #         self.cf_pos_dict[key] = Position(float('nan'), float('nan'), float('nan'))
+                    #         print(key, 'nan')
+                    #         # self.cf_pos = Position(float('nan'), float('nan'), float('nan'))
+                    #         # print(self.cf_pos.x, self.cf_pos.y, self.cf_pos.z)
 
                     if 'stateEstimate.x' in log_entry[1]:
                         # if you can see ANY of the trackers.
                         # if rawAngle0x[0] != rawAngle0x[1] or rawAngle1x[0] != rawAngle1x[1]:
-                        if rawAngle0x[0] != rawAngle0x[1] or rawAngle1x[0] != rawAngle1x[1] or rawAngle0y[0] != rawAngle0y[1] or rawAngle1y[0] != rawAngle1y[1]:
+                        if True:
+                        # if rawAngle0x[0] != rawAngle0x[1] or rawAngle1x[0] != rawAngle1x[1] or rawAngle0y[0] != rawAngle0y[1] or rawAngle1y[0] != rawAngle1y[1]:
                             data_2 = log_entry[1]
                             state_estimate[0] = data_2['stateEstimate.x']
                             state_estimate[1] = data_2['stateEstimate.y']
@@ -720,9 +721,12 @@ class HTTYD(Tab, HTTYD_tab_class):
                             state_estimate[5] = data_2['stateEstimate.yaw']
                             self.cf_pos_dict[key] = Position(state_estimate[0], state_estimate[1], state_estimate[2],
                                                              state_estimate[3], state_estimate[4], state_estimate[5])
+
+
                             if key == 'cf_pos_L':
-                                state_x.append(data_2['stateEstimate.x'])
-                                state_x.pop(0)
+                                # state_x.append(data_2['stateEstimate.x'])
+                                # state_x.pop(0)
+                                print(state_estimate[2])
                                 # print('x pos difference', state_x[0] - state_x[1])
 
                             # print('updating state estimate to {}'.format(self.cf_pos))
@@ -872,16 +876,16 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                     if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
 
-                        self.current_goal_pos.x = (self.valid_cf_pos_L.x + self.valid_cf_pos_R.x) / 2
-                        self.current_goal_pos.y = (self.valid_cf_pos_L.y + self.valid_cf_pos_R.y) / 2
-                        self.current_goal_pos.z = (self.valid_cf_pos_L.z + self.valid_cf_pos_R.z) / 2
+                        # self.current_goal_pos.x = (self.valid_cf_pos_L.x + self.valid_cf_pos_R.x) / 2
+                        # self.current_goal_pos.y = (self.valid_cf_pos_L.y + self.valid_cf_pos_R.y) / 2
+                        # self.current_goal_pos.z = (self.valid_cf_pos_L.z + self.valid_cf_pos_R.z) / 2
 
-                        # self.current_goal_pos.x = self.valid_cf_pos_L.x
-                        # self.current_goal_pos.y = self.valid_cf_pos_L.y
-                        # self.current_goal_pos.z = .5
+                        self.current_goal_pos.x = self.valid_cf_pos_L.x
+                        self.current_goal_pos.y = 0
+                        self.current_goal_pos.z = .5
 
-                        if self.current_goal_pos.z < .2:
-                            self.current_goal_pos.z = .2
+                        # if self.current_goal_pos.z < .2:
+                        #     self.current_goal_pos.z = .2
 
                     self.send_setpoint(self.current_goal_pos)
 
@@ -1029,21 +1033,22 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                     self.send_setpoint(
                         Position(self.current_goal_pos.x,
-                                 self.current_goal_pos.y, 1))
+                                 self.current_goal_pos.y, .5))
 
                     if self.valid_cf_pos.distance_to(
                             Position(self.current_goal_pos.x,
-                                     self.current_goal_pos.y, 1)) < 0.17:
+                                     self.current_goal_pos.y, .5)) < 0.17:
                         # Wait for hte crazyflie to reach the goal
                         self.switch_flight_mode(FlightModeStates.HOVERING)
                     else:
                         print(self.valid_cf_pos.distance_to(
                             Position(self.current_goal_pos.x,
-                                     self.current_goal_pos.y, 1)))
+                                     self.current_goal_pos.y, .5)))
 
                 elif self.flight_mode == FlightModeStates.HOVERING:
                     self.send_setpoint(self.current_goal_pos)
-                    print(self.current_goal_pos.x, self.current_goal_pos.y, self.current_goal_pos.z)
+                    print('goal pos =', self.current_goal_pos.z)
+
 
                 elif self.flight_mode == FlightModeStates.GROUNDED:
                     pass  # If gounded, the control is switched back to gamepad
@@ -1181,10 +1186,11 @@ class HTTYD(Tab, HTTYD_tab_class):
     def send_setpoint(self, pos):
         # Wraps the send command to the crazyflie
         if self._cf is not None:
-            if pos.z <= 0:
-                self._cf.commander.send_stop_setpoint()
-            else:
-                self._cf.commander.send_position_setpoint(pos.x, pos.y, pos.z, pos.yaw)
+            # if False:
+            # if pos.z <= -1.2:
+            #     self._cf.commander.send_stop_setpoint()
+            # else:
+            self._cf.commander.send_position_setpoint(pos.x, pos.y, pos.z, pos.yaw)
 
 
 class Position:

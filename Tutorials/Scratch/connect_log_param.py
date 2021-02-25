@@ -77,7 +77,7 @@ def simple_log(scf, logconf):
     do this,
     .
     """
-    with SyncLogger(scf, lg_stab) as logger:
+    with SyncLogger(scf, logconf) as logger:
 
         for log_entry in logger:
 
@@ -85,7 +85,8 @@ def simple_log(scf, logconf):
             data = log_entry[1]
             logconf_name = log_entry[2]
 
-            print('[%d][%s]: %s' % (timestamp, logconf_name, data))
+            print(log_entry[1])
+            # print('[%d][%s]: %s' % (timestamp, logconf_name, data))
 
             # break
 
@@ -105,12 +106,10 @@ if __name__ == '__main__':
     """Here you will add the log variables you would like to read out. If you are unsure how your variable is called,
      this can be checked by connecting to Crazyflie to the cfclient and look at the log TOC tab. If the variables don’t
     match, you get a KeyError (more on that later.)"""
-    lg_stab = LogConfig(name='lighthouse', period_in_ms=100)
-    lg_stab.add_variable('lighthouse.')
-    # lg_stab.add_variable('lighthouse.rawAngle0x', 'float')
-    # lg_stab.add_variable('lighthouse.rawAngle0y', 'float')
-    # lg_stab.add_variable('lighthouse.rawAngle1x', 'float')
-    # lg_stab.add_variable('lighthouse.rawAngle1y', 'float')
+    log_position = LogConfig(name='Position', period_in_ms=500)
+    log_position.add_variable('stateEstimate.x', 'float')
+    log_position.add_variable('stateEstimate.y', 'float')
+    log_position.add_variable('stateEstimate.z', 'float')
 
     group = "stabilizer"
     name = "estimator"
@@ -120,9 +119,9 @@ if __name__ == '__main__':
     """
     with SyncCrazyflie(uri, cf=Crazyflie(rw_cache='./cache')) as scf:
 
-        simple_connect(uri)
+        # simple_connect(uri)
 
-        # simple_log(scf, lg_stab)
+        simple_log(scf, log_position)
 
         # simple_log_async(scf, lg_stab)
 
