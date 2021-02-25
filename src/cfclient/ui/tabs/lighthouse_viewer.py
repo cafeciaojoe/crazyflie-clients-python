@@ -343,19 +343,22 @@ class LighthouseViewer(Tab, lighthouse_viewer_class):
     #     # print(self._lh_geos.rotation_matrix)
 
     def btn_clk(self):
-        print('hi')
-        print((self.id_le.text()))
-        print((self.origin_le.text()))
-        print((self.rotation_le_0).text())
-        print((self.rotation_le_1).text())
-        print((self.rotation_le_2).text())
+        origin_le = self.origin_le.text().replace(","," ")
+        rotation_le_0 = self.rotation_le_0.text().replace(","," ")
+        rotation_le_1 = self.rotation_le_1.text().replace(","," ")
+        rotation_le_2 = self.rotation_le_2.text().replace(","," ")
+
+        print((origin_le))
+        print((rotation_le_0))
+        print((rotation_le_1))
+        print((rotation_le_2))
 
         # creat instation of class
         New_Rot_Geo = DummyBsGeometry()
-        New_Rot_Geo.origin = np.fromstring(self.origin_le.text(),float,count=-1,sep=' ')
-        New_Rot_Geo.rotation_matrix = [np.fromstring(self.rotation_le_0.text(),float,count=-1,sep=' '),
-                                       np.fromstring(self.rotation_le_1.text(), float, count=-1, sep=' '),
-                                       np.fromstring(self.rotation_le_2.text(), float, count=-1, sep=' ')]
+        New_Rot_Geo.origin = np.fromstring(origin_le,float,count=-1,sep=' ')
+        New_Rot_Geo.rotation_matrix = [np.fromstring(rotation_le_0,float,count=-1,sep=' '),
+                                       np.fromstring(rotation_le_1, float, count=-1, sep=' '),
+                                       np.fromstring(rotation_le_2, float, count=-1, sep=' ')]
         self._lh_geos[int(self.id_le.text())] = New_Rot_Geo
 
     def _disconnected(self, link_uri):
