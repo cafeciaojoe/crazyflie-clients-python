@@ -1,13 +1,14 @@
 - page_id: home
 - title: Installation
   subs:
-    - {page_id: run_from_source}
+    - {page_id: install}
 - title: Userguides
   subs:
     - {page_id: userguide_client}
     - {page_id: cfheadless}
     - {page_id: inputdevices}
     - {page_id: raspberrypi}
+    - {page_id: recovery-mode}
 - title: Functional areas
   subs:
     - {page_id: cfloader}

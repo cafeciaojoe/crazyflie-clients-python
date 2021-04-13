@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import subprocess
-from subprocess import PIPE, Popen
 from setuptools import setup, find_packages
 from glob import glob
 import json
@@ -9,6 +7,8 @@ import codecs
 import sys
 import os
 import platform
+
+from gitversion import get_version
 
 if sys.argv[1] in ('build', 'bdist_msi', 'bdist_mac', 'bdist_dmg',
                    'install_exe'):
@@ -44,30 +44,8 @@ else:
 # except:
 #     pass
 
-if sys.version_info < (3, 5):
-    raise "must use python 3.5 or greater"
-
-
-# Recover version from Git.
-# Returns None if git is not installed or if we are running outside of the git
-# tree
-def get_version():
-    try:
-        process = Popen(["git", "describe", "--tags"], stdout=PIPE)
-        (output, err) = process.communicate()
-        process.wait()
-    except OSError:
-        return None
-
-    if process.returncode != 0:
-        return None
-
-    version = output.strip().decode("UTF-8")
-
-    if subprocess.call(["git", "diff-index", "--quiet", "HEAD"]) != 0:
-        version += "_modified"
-
-    return version
+if sys.version_info < (3, 6):
+    raise "must use python 3.6 or greater"
 
 
 def relative(lst, base=''):
@@ -90,11 +68,11 @@ else:
         f.write(json.dumps({'version': VERSION}))
 
 platform_requires = []
-platform_dev_requires = []
+platform_dev_requires = ['pre-commit']
 if sys.platform == 'win32' or sys.platform == 'darwin':
-    platform_requires = ['pysdl2~=0.9.6']
+    platform_requires.extend(['pysdl2~=0.9.6', 'pysdl2-dll==2.0.14.post1'])
 if sys.platform == 'win32':
-    platform_dev_requires = ['cx_freeze==5.1.1', 'jinja2==2.10.3']
+    platform_dev_requires.extend(['cx_freeze==5.1.1', 'jinja2==2.10.3'])
 
 # Only install the latest pyqt for Linux and Mac
 # On Windows, the latest version that does not have performance problems
@@ -151,7 +129,7 @@ setup(
         ],
     },
 
-    install_requires=platform_requires + ['cflib',
+    install_requires=platform_requires + ['cflib~=0.1.14.2',
                                           'appdirs~=1.4.0',
                                           'pyzmq~=19.0',
                                           'pyqtgraph~=0.11',
@@ -159,11 +137,8 @@ setup(
                                           'quamash~=0.6.1',
                                           'qtm~=2.0.2',
                                           'numpy~=1.19.2',
-                                          'vispy~=0.6.6'],
-
-    dependency_links=[
-        'git+https://github.com/bitcraze/crazyflie-lib-python@7860e10a636cd6bba7053899d916954e94754838#egg=cflib'
-    ],
+                                          'vispy~=0.6.6',
+                                          'pyserial~=3.5'],
 
     # List of dev dependencies
     # You can install them by running
