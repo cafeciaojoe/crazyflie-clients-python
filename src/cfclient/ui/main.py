@@ -174,7 +174,7 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
         self._menuItem_openconfigfolder.triggered.connect(
             self._open_config_folder)
 
-        self._set_address()
+        self._set_address(0xA0A0A0A0A3)
 
         self._connectivity_manager = ConnectivityManager()
         self._connectivity_manager.register_ui_elements(
@@ -184,6 +184,7 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
                 connect_button=self.connectButton,
                 scan_button=self.scanButton))
 
+        self.comboBox.activated[str].connect(self.onChanged)
         self._connectivity_manager.connect_button_clicked.connect(self._connect)
         self._connectivity_manager.scan_button_clicked.connect(self._scan)
 
@@ -359,17 +360,53 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
             self._theme_group.addAction(node)
             self.menuThemes.addAction(node)
 
-    def _set_address(self):
-        address = 0xE7E7E7E7E7
-        try:
-            link_uri = Config().get("link_uri")
-            if link_uri.startswith("radio://"):
-                if len(link_uri) > 0:
-                    address = int(link_uri.split('/')[-1], 16)
-        except Exception as err:
-            logger.warn('failed to parse address from config: %s' % str(err))
-        finally:
-            self.address.setValue(address)
+    def onChanged(self, text):
+        if text == 'What is your name?':
+            self.address.setEnabled(True)
+            self._set_address(0xA0A0A0A0A3)
+
+        if text == 'Julian Szlawski':
+            self.address.setEnabled(False)
+            self._set_address(0xA0A0A0A0A3)
+
+        if text == 'Margot Delafolouze':
+            self.address.setEnabled(False)
+            self._set_address(0xA0A0A0A0A4)
+
+        if text == 'Nina De La Cruz':
+            self.address.setEnabled(False)
+            self._set_address(0xA0A0A0A0A5)
+
+        if text == 'Tim Fist':
+            self.address.setEnabled(False)
+            self._set_address(0xA0A0A0A0A6)
+
+        if text == 'Tim Goodson':
+            self.address.setEnabled(False)
+            self._set_address(0xA0A0A0A0A7)
+
+        if text == '-----':
+            self.address.setEnabled(False)
+            self._set_address(0)
+
+        if text == 'Hand Pad L':
+            self.address.setEnabled(False)
+            self._set_address(0xA0A0A0A0A0)
+
+        if text == 'Hand Pad R':
+            self.address.setEnabled(False)
+            self._set_address(0xA0A0A0A0A1)
+
+    def _set_address(self, address):
+        # try:
+        #     link_uri = Config().get("link_uri")
+        #     if link_uri.startswith("radio://"):
+        #         if len(link_uri) > 0:
+        #             address = int(link_uri.split('/')[-1], 16)
+        # except Exception as err:
+        #     logger.warn('failed to parse address from config: %s' % str(err))
+        # finally:
+        self.address.setValue(address)
 
     def _theme_selected(self, *args):
         """ Callback when a theme is selected. """
@@ -451,6 +488,9 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
             self._menu_cf2_config.setEnabled(False)
             self.linkQualityBar.setValue(0)
             self.logConfigAction.setEnabled(False)
+
+            self.address.setEnabled(False)
+            self.interfaceCombo.setEnabled(False)
         elif self.uiState == UIState.CONNECTED:
             s = "Connected on %s" % self._connectivity_manager.get_interface()
             self.setWindowTitle(s)
@@ -458,20 +498,28 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
             self.menuItemConnect.setEnabled(True)
             self._connectivity_manager.set_state(ConnectivityManager.UIState.CONNECTED)
             self.logConfigAction.setEnabled(True)
+
+            self.address.setEnabled(False)
+            self.interfaceCombo.setEnabled(False)
             # Find out if there's an I2C EEPROM, otherwise don't show the
             # dialog.
             if len(self.cf.mem.get_mems(MemoryElement.TYPE_I2C)) > 0:
                 self._menu_cf2_config.setEnabled(True)
+
         elif self.uiState == UIState.CONNECTING:
             s = "Connecting to {} ...".format(self._connectivity_manager.get_interface())
             self.setWindowTitle(s)
             self.menuItemConnect.setText("Cancel")
             self.menuItemConnect.setEnabled(True)
             self._connectivity_manager.set_state(ConnectivityManager.UIState.CONNECTING)
+            self.address.setEnabled(False)
         elif self.uiState == UIState.SCANNING:
             self.setWindowTitle("Scanning ...")
             self.menuItemConnect.setEnabled(False)
             self._connectivity_manager.set_state(ConnectivityManager.UIState.SCANNING)
+
+            self.address.setEnabled(False)
+            self.interfaceCombo.setEnabled(False)
 
     @pyqtSlot(bool)
     def toggleToolbox(self, display):

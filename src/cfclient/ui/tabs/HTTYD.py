@@ -152,8 +152,8 @@ class HTTYD(Tab, HTTYD_tab_class):
         self._cf_R = None
 
         # self.uri gets passedin in from main.py upon connection
-        self.uri_L = 'radio://0/80/2M/E7E7E7E7ED'
-        self.uri_R = 'radio://0/80/2M/A0A0A0A0AA'
+        self.uri_L = 'radio://0/80/2M/A0A0A0A0A0'
+        self.uri_R = 'radio://0/80/2M/A0A0A0A0A1'
 
         # assign the label to the _cf_status_ strings
         self._cf_status = self.cfStatusLabel.text()
@@ -634,7 +634,7 @@ class HTTYD(Tab, HTTYD_tab_class):
             log_angle.add_variable('lighthouse.rawAngle0ylh2', 'float')
             log_angle.add_variable('lighthouse.rawAngle1ylh2', 'float')
 
-            log_position = LogConfig(name='Position', period_in_ms=1000)
+            log_position = LogConfig(name='Position', period_in_ms=50)
             log_position.add_variable('stateEstimate.x', 'float')
             log_position.add_variable('stateEstimate.y', 'float')
             log_position.add_variable('stateEstimate.z', 'float')
@@ -652,7 +652,7 @@ class HTTYD(Tab, HTTYD_tab_class):
 
             state_x = [0,0]
 
-            PowerSwitch(link_uri).stm_power_cycle()
+            # PowerSwitch(link_uri).stm_power_cycle()
             time.sleep(1)
 
             # Default estimator is the EKF when using lighthouse deck
@@ -876,13 +876,13 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                     if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
 
-                        # self.current_goal_pos.x = (self.valid_cf_pos_L.x + self.valid_cf_pos_R.x) / 2
-                        # self.current_goal_pos.y = (self.valid_cf_pos_L.y + self.valid_cf_pos_R.y) / 2
-                        # self.current_goal_pos.z = (self.valid_cf_pos_L.z + self.valid_cf_pos_R.z) / 2
+                        self.current_goal_pos.x = (self.valid_cf_pos_L.x + self.valid_cf_pos_R.x) / 2
+                        self.current_goal_pos.y = (self.valid_cf_pos_L.y + self.valid_cf_pos_R.y) / 2
+                        self.current_goal_pos.z = .25 + (self.valid_cf_pos_L.z + self.valid_cf_pos_R.z) / 2
 
-                        self.current_goal_pos.x = self.valid_cf_pos_L.x
-                        self.current_goal_pos.y = 0
-                        self.current_goal_pos.z = .5
+                        # self.current_goal_pos.x = self.valid_cf_pos_L.x
+                        # self.current_goal_pos.y = 0
+                        # self.current_goal_pos.z = .5
 
                         # if self.current_goal_pos.z < .2:
                         #     self.current_goal_pos.z = .2
