@@ -440,6 +440,9 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.t2 = threading.Thread(target=self.flight_logger, args=(self._helper.cf, 'cf_pos',link_uri))
         self.t2.start()
 
+        self.link_uri_flying = link_uri
+        print(link_uri)
+
         self._ui_update_timer.start(200)
 
     def _disconnected(self, link_uri):
@@ -606,6 +609,8 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.current_goal_pos = self.valid_cf_pos
         logger.info('Trying to lift at: {}'.format(
             self.current_goal_pos))
+        # divides the goal pos (x) by n eg x/n, x/n-1, x/n-2... x/1
+        self.lift_rate = 3
         self._event.set()
 
     def _flight_mode_hovering_entered(self):
@@ -626,13 +631,15 @@ class HTTYD(Tab, HTTYD_tab_class):
         try:
             logger.info('Starting flight logger thread for {}'.format(key))
 
-            log_angle = LogConfig(name='lighthouse', period_in_ms=50)
+            received_signals = LogConfig(name='lighthouse', period_in_ms=1000)
             # below 50ms nans are called even though the cf can see the base station
             # probably because it is logging the variable before it is updated.
-            log_angle.add_variable('lighthouse.rawAngle0xlh2', 'float')
-            log_angle.add_variable('lighthouse.rawAngle1xlh2', 'float')
-            log_angle.add_variable('lighthouse.rawAngle0ylh2', 'float')
-            log_angle.add_variable('lighthouse.rawAngle1ylh2', 'float')
+            # log_angle.add_variable('lighthouse.rawAngle0xlh2', 'float')
+            # log_angle.add_variable('lighthouse.rawAngle1xlh2', 'float')
+            # log_angle.add_variable('lighthouse.rawAngle0ylh2', 'float')
+            # log_angle.add_variable('lighthouse.rawAngle1ylh2', 'float')
+            received_signals.add_variable('lighthouse.bsReceive','uint16_t')
+
 
             log_position = LogConfig(name='Position', period_in_ms=50)
             log_position.add_variable('stateEstimate.x', 'float')
@@ -642,94 +649,64 @@ class HTTYD(Tab, HTTYD_tab_class):
             log_position.add_variable('stateEstimate.pitch', 'float')
             log_position.add_variable('stateEstimate.yaw', 'float')
 
-            rawAngle0x = [0, 0]
-            rawAngle1x = [0, 0]
-
-            rawAngle0y = [0, 0]
-            rawAngle1y = [0, 0]
-
             state_estimate = [0, 0, 0, 0, 0, 0]
 
-            state_x = [0,0]
+            data_1 = {}
+            data_2 = {}
 
             # PowerSwitch(link_uri).stm_power_cycle()
             time.sleep(1)
 
-            # Default estimator is the EKF when using lighthouse deck
-            # cf.param.set_value('stabilizer.estimator', '2')
             self.reset_estimator(cf)
-            # flightmode.posSet is an old hack that used modified roll pitch yaw packets
-            # to send x y z data.
-            # cf.param.set_value('flightmode.posSet', '1')
 
             time.sleep(0.1)
 
             if cf == self._helper.cf:
+                received_signals.data_received_cb.add_callback(self._log_data_received)
+                # log_position.data_received_cb.add_callback(self._log_data_received)
+                received_signals.error_cb.add_callback(self._log_error_signal)
+                # log_position.error_cb.add_callback(self._log_error_signal)
                 print('_cf callbacks set')
-                log_angle.data_received_cb.add_callback(self._log_data_received)
-                log_position.data_received_cb.add_callback(self._log_data_received)
-                log_angle.error_cb.add_callback(self._log_error_signal)
-                log_position.error_cb.add_callback(self._log_error_signal)
 
             if cf == self._helper_L:
-                print('_cf_L callbacks set')
-                log_angle.data_received_cb.add_callback(self._log_data_received_L)
+                received_signals.data_received_cb.add_callback(self._log_data_received_L)
                 log_position.data_received_cb.add_callback(self._log_data_received_L)
-                log_angle.error_cb.add_callback(self._log_error_signal_L)
+                received_signals.error_cb.add_callback(self._log_error_signal_L)
                 log_position.error_cb.add_callback(self._log_error_signal_L)
+                print('_cf_L callbacks set')
 
             if cf == self._helper_R:
-                print('_cf_R callbacks set')
-                log_angle.data_received_cb.add_callback(self._log_data_received_R)
+                received_signals.data_received_cb.add_callback(self._log_data_received_R)
                 log_position.data_received_cb.add_callback(self._log_data_received_R)
-                log_angle.error_cb.add_callback(self._log_error_signal_R)
+                received_signals.error_cb.add_callback(self._log_error_signal_R)
                 log_position.error_cb.add_callback(self._log_error_signal_R)
+                print('_cf_R callbacks set')
 
-            with SyncLogger(cf, [log_angle, log_position]) as log:
+            with SyncLogger(cf, [received_signals, log_position]) as log:
                 for log_entry in log:
-                    # print(log_entry[1],key)
-                    # if 'lighthouse.rawAngle0xlh2' in log_entry[1]:
-                    #     data_1 = log_entry[1]
-                    #     rawAngle0x.append(data_1['lighthouse.rawAngle0xlh2'])
-                    #     rawAngle0x.pop(0)
-                    #     rawAngle1x.append(data_1['lighthouse.rawAngle1xlh2'])
-                    #     rawAngle1x.pop(0)
-                    #     rawAngle0y.append(data_1['lighthouse.rawAngle0ylh2'])
-                    #     rawAngle0y.pop(0)
-                    #     rawAngle1y.append(data_1['lighthouse.rawAngle1ylh2'])
-                    #     rawAngle1y.pop(0)
-                    #
-                    #     # if you cannot see ANY of the trackers.
-                    #     # if rawAngle0x[0] == rawAngle0x[1] and rawAngle1x[0] == rawAngle1x[1]:
-                    #     if rawAngle0x[0] == rawAngle0x[1] and rawAngle1x[0] == rawAngle1x[1] and rawAngle0y[0] == rawAngle0y[1] and rawAngle1y[0] == rawAngle1y[1]:
-                    #         self.cf_pos_dict[key] = Position(float('nan'), float('nan'), float('nan'))
-                    #         print(key, 'nan')
-                    #         # self.cf_pos = Position(float('nan'), float('nan'), float('nan'))
-                    #         # print(self.cf_pos.x, self.cf_pos.y, self.cf_pos.z)
+                    if 'lighthouse.bsReceive' in log_entry[1]:
+                        data_1 = log_entry[1]
+
+                        # if you cannot see ANY of the trackers.
+                        if data_1['lighthouse.bsReceive'] == 0:
+                            self.cf_pos_dict[key] = Position(float('nan'), float('nan'), float('nan'))
+                            print(key, 'nan')
+                            # self.cf_pos = Position(float('nan'), float('nan'), float('nan'))
+                            # print(self.cf_pos.x, self.cf_pos.y, self.cf_pos.z)
 
                     if 'stateEstimate.x' in log_entry[1]:
                         # if you can see ANY of the trackers.
-                        # if rawAngle0x[0] != rawAngle0x[1] or rawAngle1x[0] != rawAngle1x[1]:
-                        if True:
-                        # if rawAngle0x[0] != rawAngle0x[1] or rawAngle1x[0] != rawAngle1x[1] or rawAngle0y[0] != rawAngle0y[1] or rawAngle1y[0] != rawAngle1y[1]:
-                            data_2 = log_entry[1]
-                            state_estimate[0] = data_2['stateEstimate.x']
-                            state_estimate[1] = data_2['stateEstimate.y']
-                            state_estimate[2] = data_2['stateEstimate.z']
-                            state_estimate[3] = data_2['stateEstimate.roll']
-                            state_estimate[4] = data_2['stateEstimate.pitch']
-                            state_estimate[5] = data_2['stateEstimate.yaw']
-                            self.cf_pos_dict[key] = Position(state_estimate[0], state_estimate[1], state_estimate[2],
-                                                             state_estimate[3], state_estimate[4], state_estimate[5])
-
-
-                            if key == 'cf_pos_L':
-                                # state_x.append(data_2['stateEstimate.x'])
-                                # state_x.pop(0)
-                                print(state_estimate[2])
-                                # print('x pos difference', state_x[0] - state_x[1])
-
-                            # print('updating state estimate to {}'.format(self.cf_pos))
+                        if data_1.get('lighthouse.bsReceive') is not None:
+                            if data_1.get('lighthouse.bsReceive') > 0:
+                                data_2 = log_entry[1]
+                                state_estimate[0] = data_2['stateEstimate.x']
+                                state_estimate[1] = data_2['stateEstimate.y']
+                                state_estimate[2] = data_2['stateEstimate.z']
+                                state_estimate[3] = data_2['stateEstimate.roll']
+                                state_estimate[4] = data_2['stateEstimate.pitch']
+                                state_estimate[5] = data_2['stateEstimate.yaw']
+                                self.cf_pos_dict[key] = Position(state_estimate[0], state_estimate[1], state_estimate[2],
+                                                                 state_estimate[3], state_estimate[4], state_estimate[5])
 
                     # if any of the cf's leave the logger loop
 
@@ -745,7 +722,7 @@ class HTTYD(Tab, HTTYD_tab_class):
 
             # The threshold for how many frames without tracking
             # is allowed before the cf's motors are stopped
-            lost_tracking_threshold = 1000
+            lost_tracking_threshold = 250
             frames_without_tracking = 0
             position_hold_timer = 0
             spin = 0
@@ -776,16 +753,12 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                     if frames_without_tracking > lost_tracking_threshold and \
                             self.flight_mode != FlightModeStates. GROUNDED:
-                        self.set_kill_engine()
-                        self.status = "Tracking lost, GROUNDED"
-                        logger.info(self.status)
+                        self.set_kill_engine("Tracking lost")
 
                 # If the cf is upside down, kill the motors
                 if (self.valid_cf_pos.roll > 120 or self.valid_cf_pos.roll < -120) and \
                         self.flight_mode != FlightModeStates. GROUNDED:
-                    self.set_kill_engine()
-                    self.status = "Status: Upside down, GROUNDED"
-                    logger.info(self.status)
+                    self.set_kill_engine("Upside down")
 
                 # Switch on the FlightModeState and take actions accordingly
                 # Wait so that any on state change actions are completed
@@ -810,18 +783,8 @@ class HTTYD(Tab, HTTYD_tab_class):
                         self.land_rate *= 1.1
 
                     if self.land_rate > 1000:
-                        self.send_setpoint(Position(0, 0, 0))
-                        # if self.land_for_recording:
-                        #     # Return the control to the recording mode
-                        #     # after landing
-                        #     mode = FlightModeStates.RECORD
-                        #     self.land_for_recording = False
-                        # else:
-                        #     # Regular landing
-                        #     mode = FlightModeStates.GROUNDED
-                        mode = FlightModeStates.GROUNDED
-                        spin = 0
-                        self.switch_flight_mode(mode)
+                        self.send_setpoint(Position(self.current_goal_pos.x, self.current_goal_pos.y, 0))
+                        self.switch_flight_mode(FlightModeStates.GROUNDED)
 
                 elif self.flight_mode == FlightModeStates.CIRCLE:
                     self.send_setpoint(self.current_goal_pos)
@@ -1030,24 +993,30 @@ class HTTYD(Tab, HTTYD_tab_class):
 
 
                 elif self.flight_mode == FlightModeStates.LIFT:
+                    lift_height = .5
 
-                    self.send_setpoint(
-                        Position(self.current_goal_pos.x,
-                                 self.current_goal_pos.y, .5))
+                    if self.valid_cf_pos.distance_to(Position(0,0,0)) > 1.5:
+                        self.set_kill_engine('Connected drone not in centre of flying area, turn off all other drones and try again.')
 
-                    if self.valid_cf_pos.distance_to(
-                            Position(self.current_goal_pos.x,
-                                     self.current_goal_pos.y, .5)) < 0.17:
-                        # Wait for hte crazyflie to reach the goal
-                        self.switch_flight_mode(FlightModeStates.HOVERING)
                     else:
-                        print(self.valid_cf_pos.distance_to(
+                        self.send_setpoint(
                             Position(self.current_goal_pos.x,
-                                     self.current_goal_pos.y, .5)))
+                                     self.current_goal_pos.y, (lift_height / self.lift_rate)))
+                        self.lift_rate -= .01
+                        print(self.lift_rate)
+
+                        #             # Wait for hte crazyflie to reach each step of the goal
+                        # if self.valid_cf_pos.distance_to(
+                        #         Position(self.current_goal_pos.x,
+                        #                  self.current_goal_pos.y, lift_height/self.lift_rate)) < 0.17:
+                        #     self.switch_flight_mode(FlightModeStates.HOVERING)
+
+                        if self.lift_rate < 1:
+                            self.lift_rate = 1
 
                 elif self.flight_mode == FlightModeStates.HOVERING:
                     self.send_setpoint(self.current_goal_pos)
-                    print('goal pos =', self.current_goal_pos.z)
+                    # print('goal pos =', self.current_goal_pos.z)
 
 
                 elif self.flight_mode == FlightModeStates.GROUNDED:
@@ -1077,10 +1046,12 @@ class HTTYD(Tab, HTTYD_tab_class):
         else:
             self.switch_flight_mode(FlightModeStates.FOLLOW)
 
-    def set_kill_engine(self):
-        self.send_setpoint(Position(0, 0, 0))
-        self.switch_flight_mode(FlightModeStates.GROUNDED)
-        logger.info('Stop button pressed, kill engines')
+    def set_kill_engine(self, message):
+            PowerSwitch(self.link_uri_flying).stm_power_cycle()
+            self._helper.cf.close_link()
+            # stm_power_cycle seems to stop the lighthouse deck from booting properly so we disconnect immediately afterwards.
+            self.switch_flight_mode(FlightModeStates.DISCONNECTED)
+            self.status = 'Disabled ' + message
 
     def wait_for_position_estimator(self, cf):
         logger.info('Waiting for estimator to find stable position...')
@@ -1186,11 +1157,10 @@ class HTTYD(Tab, HTTYD_tab_class):
     def send_setpoint(self, pos):
         # Wraps the send command to the crazyflie
         if self._cf is not None:
-            # if False:
-            # if pos.z <= -1.2:
-            #     self._cf.commander.send_stop_setpoint()
-            # else:
-            self._cf.commander.send_position_setpoint(pos.x, pos.y, pos.z, pos.yaw)
+            if pos.z <= -1.2:
+                self._cf.commander.send_stop_setpoint()
+            else:
+                self._cf.commander.send_position_setpoint(pos.x, pos.y, pos.z, pos.yaw)
 
 
 class Position:
