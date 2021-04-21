@@ -92,14 +92,14 @@ class UIState:
     SCANNING = 3
 
 
-class BatteryStates:
-    BATTERY, CHARGING, CHARGED, LOW_POWER = list(range(4))
+# class BatteryStates:
+#     BATTERY, CHARGING, CHARGED, LOW_POWER = list(range(4))
 
 
 class MainUI(QtWidgets.QMainWindow, main_window_class):
     connectionLostSignal = pyqtSignal(str, str)
     connectionInitiatedSignal = pyqtSignal(str)
-    batteryUpdatedSignal = pyqtSignal(int, object, object)
+    # batteryUpdatedSignal = pyqtSignal(int, object, object)
     connectionDoneSignal = pyqtSignal(str)
     connectionFailedSignal = pyqtSignal(str, str)
     disconnectedSignal = pyqtSignal(str)
@@ -169,7 +169,7 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
         self.menuItemConfInputDevice.triggered.connect(
             self._show_input_device_config_dialog)
         self.menuItemExit.triggered.connect(self.closeAppRequest)
-        self.batteryUpdatedSignal.connect(self._update_battery)
+        # self.batteryUpdatedSignal.connect(self._update_battery)
         self._menuitem_rescandevices.triggered.connect(self._rescan_devices)
         self._menuItem_openconfigfolder.triggered.connect(
             self._open_config_folder)
@@ -217,8 +217,8 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
         self.connectionInitiatedSignal.connect(self._connection_initiated)
         self._log_error_signal.connect(self._logging_error)
 
-        self.batteryBar.setTextVisible(False)
-        self.linkQualityBar.setTextVisible(False)
+        # self.batteryBar.setTextVisible(False)
+        # self.linkQualityBar.setTextVisible(False)
 
         # Connect link quality feedback
         self.cf.link_quality_updated.add_callback(self.linkQualitySignal.emit)
@@ -484,7 +484,7 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
             self.menuItemConnect.setText("Connect to Crazyflie")
             self.menuItemConnect.setEnabled(canConnect)
             self._connectivity_manager.set_state(ConnectivityManager.UIState.DISCONNECTED)
-            self.batteryBar.setValue(3000)
+            # self.batteryBar.setValue(3000)
             self._menu_cf2_config.setEnabled(False)
             self.linkQualityBar.setValue(0)
             self.logConfigAction.setEnabled(False)
@@ -556,19 +556,19 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
     def _show_connect_dialog(self):
         self.logConfigDialogue.show()
 
-    def _update_battery(self, timestamp, data, logconf):
-        self.batteryBar.setValue(int(data["pm.vbat"] * 1000))
-
-        color = UiUtils.COLOR_BLUE
-        # TODO firmware reports fully-charged state as 'Battery',
-        # rather than 'Charged'
-        if data["pm.state"] in [BatteryStates.CHARGING, BatteryStates.CHARGED]:
-            color = UiUtils.COLOR_GREEN
-        elif data["pm.state"] == BatteryStates.LOW_POWER:
-            color = UiUtils.COLOR_RED
-
-        self.batteryBar.setStyleSheet(UiUtils.progressbar_stylesheet(color))
-        self._aff_volts.setText(("%.3f" % data["pm.vbat"]))
+    # def _update_battery(self, timestamp, data, logconf):
+    #     self.batteryBar.setValue(int(data["pm.vbat"] * 1000))
+    #
+    #     color = UiUtils.COLOR_BLUE
+    #     # TODO firmware reports fully-charged state as 'Battery',
+    #     # rather than 'Charged'
+    #     if data["pm.state"] in [BatteryStates.CHARGING, BatteryStates.CHARGED]:
+    #         color = UiUtils.COLOR_GREEN
+    #     elif data["pm.state"] == BatteryStates.LOW_POWER:
+    #         color = UiUtils.COLOR_RED
+    #
+    #     self.batteryBar.setStyleSheet(UiUtils.progressbar_stylesheet(color))
+    #     self._aff_volts.setText(("%.3f" % data["pm.vbat"]))
 
     def _connected(self):
         self.uiState = UIState.CONNECTED
@@ -576,16 +576,16 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
 
         Config().set("link_uri", str(self._connectivity_manager.get_interface()))
 
-        lg = LogConfig("Battery", 1000)
-        lg.add_variable("pm.vbat", "float")
-        lg.add_variable("pm.state", "int8_t")
-        try:
-            self.cf.log.add_config(lg)
-            lg.data_received_cb.add_callback(self.batteryUpdatedSignal.emit)
-            lg.error_cb.add_callback(self._log_error_signal.emit)
-            lg.start()
-        except KeyError as e:
-            logger.warning(str(e))
+        # lg = LogConfig("Battery", 1000)
+        # lg.add_variable("pm.vbat", "float")
+        # lg.add_variable("pm.state", "int8_t")
+        # try:
+        #     self.cf.log.add_config(lg)
+        #     lg.data_received_cb.add_callback(self.batteryUpdatedSignal.emit)
+        #     lg.error_cb.add_callback(self._log_error_signal.emit)
+        #     lg.start()
+        # except KeyError as e:
+        #     logger.warning(str(e))
 
         mems = self.cf.mem.get_mems(MemoryElement.TYPE_DRIVER_LED)
         if len(mems) > 0:
