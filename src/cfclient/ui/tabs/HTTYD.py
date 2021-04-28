@@ -48,8 +48,7 @@ from cfclient.utils.config import Config
 from cflib.utils.power_switch import PowerSwitch
 
 from cfclient.utils.ui import UiUtils
-
-
+from cfclient.ui.tabs.socket_class import SocketManager
 
 import threading
 
@@ -135,9 +134,13 @@ class HTTYD(Tab, HTTYD_tab_class):
 
     batteryUpdatedSignal = pyqtSignal(int, object, object)
 
+    socket_manager = None
+
     def __init__(self, tabWidget, helper, *args):
         super(HTTYD, self).__init__(*args)
         self.setupUi(self)
+
+        self.server = SocketManager(self, server = True, port=5050)
 
         self._machine = QStateMachine()
         self._setup_states()
@@ -151,6 +154,9 @@ class HTTYD(Tab, HTTYD_tab_class):
         self._helper = helper
         self._helper_R = Crazyflie(rw_cache='./cache')
         self._helper_L = Crazyflie(rw_cache='./cache')
+
+        # creates a class of the socket manager and sets it to be a server, capable of listening for connections
+        # self.server.listen()
 
         # the above helper cf instances are only assigned to _cf_L and _cf_R after they start logging
         self._cf = None
@@ -246,6 +252,12 @@ class HTTYD(Tab, HTTYD_tab_class):
         # Start these ui elements invisible
         self.batteryBar.setTextVisible(False)
 
+
+    def got_message(self, address ,data):
+        # address is given but not used
+        # Send the data to where you want it from here
+        print('callback', data)
+        pass
 
     def _setup_states(self):
         parent_state = QState()
@@ -467,6 +479,8 @@ class HTTYD(Tab, HTTYD_tab_class):
         # Gui
         self.cfStatus = ': connected'
 
+        self.reset_all_positions()
+
         self._helper_L.open_link(self.uri_L)
         self._helper_R.open_link(self.uri_R)
 
@@ -474,7 +488,9 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.t2.start()
 
         self.link_uri_flying = link_uri
-        print(link_uri)
+        # username is the URI for the drone
+        self.server.send_message(message = {'username':link_uri})
+        print('sent', link_uri, type(link_uri))
 
         # log the battery state and voltage
         lg = LogConfig("Battery", 2000)
@@ -646,6 +662,7 @@ class HTTYD(Tab, HTTYD_tab_class):
 
     def _flight_mode_follow_entered(self):
         logger.info('Entering follow mode')
+        # TODO - RE INSTATE LAST WAND POS
         # self.last_valid_wand_pos = Position(0, 0, 1)
         self._event.set()
 
@@ -654,7 +671,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         logger.info('Trying to lift at: {}'.format(
             self.current_goal_pos))
         # divides the goal pos (x) by n eg x/n, x/n-1, x/n-2... x/1
-        self.lift_rate = 7
+        self.lift_rate = 3
         self._event.set()
 
     def _flight_mode_hovering_entered(self):
@@ -841,7 +858,7 @@ class HTTYD(Tab, HTTYD_tab_class):
                             self.land_rate *= 1.1
 
                         if self.land_rate > 1000:
-                            self.send_setpoint(Position(self.current_goal_pos.x, self.current_goal_pos.y, 0))
+                            self.send_setpoint(Position(self.current_goal_pos.x, self.current_goal_pos.y, 0.001))
                             self.switch_flight_mode(FlightModeStates.GROUNDED)
 
                 elif self.flight_mode == FlightModeStates.CIRCLE:
@@ -896,34 +913,37 @@ class HTTYD(Tab, HTTYD_tab_class):
                         self.valid_cf_pos_R = self.cf_pos_R
 
                     if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
-                        # Simple midpoint.
-                        self.current_goal_pos.x = (self.valid_cf_pos_L.x + self.valid_cf_pos_R.x) / 2
-                        self.current_goal_pos.y = (self.valid_cf_pos_L.y + self.valid_cf_pos_R.y) / 2
-                        self.current_goal_pos.z = .25 + (self.valid_cf_pos_L.z + self.valid_cf_pos_R.z) / 2
+                        # # Simple midpoint.
+                        # self.current_goal_pos.x = (self.valid_cf_pos_L.x + self.valid_cf_pos_R.x) / 2
+                        # self.current_goal_pos.y = (self.valid_cf_pos_L.y + self.valid_cf_pos_R.y) / 2
+                        # self.current_goal_pos.z = .25 + (self.valid_cf_pos_L.z + self.valid_cf_pos_R.z) / 2
+                        #
+                        # self.send_setpoint(self.current_goal_pos)
 
-                        self.send_setpoint(self.current_goal_pos)
+                        """find the mid point between two points a certain distance away from the wands"""
+                        self.end_of_wand_L.x = self.valid_cf_pos_L.x + round(
+                            math.cos(math.radians(self.valid_cf_pos_L.roll)), 4) * self.length_from_wand
+                        self.end_of_wand_L.y = self.valid_cf_pos_L.y + round(
+                            math.sin(math.radians(self.valid_cf_pos_L.roll)), 4) * self.length_from_wand
+                        self.end_of_wand_L.z = self.valid_cf_pos_L.z + round(
+                            math.sin(math.radians(self.valid_cf_pos_L.pitch)), 4) * self.length_from_wand
 
-                        # """find the mid point between two points a certain distance away from the wands"""
-                        # self.end_of_wand_L.x = self.valid_cf_pos_L.x + round(
-                        #     math.cos(math.radians(self.valid_cf_pos_L.yaw)), 4) * self.length_from_wand
-                        # self.end_of_wand_L.y = self.valid_cf_pos_L.y + round(
-                        #     math.sin(math.radians(self.valid_cf_pos_L.yaw)), 4) * self.length_from_wand
-                        # self.end_of_wand_L.z = self.valid_cf_pos_L.z + round(
-                        #     math.sin(math.radians(self.valid_cf_pos_L.pitch)), 4) * self.length_from_wand
-                        #
-                        # self.end_of_wand_R.x = self.valid_cf_pos_R.x + round(
-                        #     math.cos(math.radians(self.valid_cf_pos_R.yaw)), 4) * self.length_from_wand
-                        # self.end_of_wand_R.y = self.valid_cf_pos_R.y + round(
-                        #     math.sin(math.radians(self.valid_cf_pos_R.yaw)), 4) * self.length_from_wand
-                        # self.end_of_wand_R.z = self.valid_cf_pos_R.z + round(
-                        #     math.sin(math.radians(self.valid_cf_pos_R.pitch)), 4) * self.length_from_wand
-                        #
-                        # self.mid_pos.x = self.end_of_wand_L.x + (.5) * (self.end_of_wand_R.x - self.end_of_wand_L.x)
-                        # self.mid_pos.y = self.end_of_wand_L.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand_L.y)
-                        # self.mid_pos.z = self.end_of_wand_L.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand_L.z)
-                        #
-                        # if self.mid_pos.distance_to(self.valid_cf_pos) < .1:
-                        #     print("connected")
+                        self.end_of_wand_R.x = self.valid_cf_pos_R.x + round(
+                            math.cos(math.radians(self.valid_cf_pos_R.roll)), 4) * self.length_from_wand
+                        self.end_of_wand_R.y = self.valid_cf_pos_R.y + round(
+                            math.sin(math.radians(self.valid_cf_pos_R.roll)), 4) * self.length_from_wand
+                        self.end_of_wand_R.z = self.valid_cf_pos_R.z + round(
+                            math.sin(math.radians(self.valid_cf_pos_R.pitch)), 4) * self.length_from_wand
+
+                        self.mid_pos.x = self.end_of_wand_L.x + (.5) * (self.end_of_wand_R.x - self.end_of_wand_L.x)
+                        self.mid_pos.y = self.end_of_wand_L.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand_L.y)
+                        self.mid_pos.z = self.end_of_wand_L.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand_L.z)
+
+                        if self.mid_pos.distance_to(self.valid_cf_pos) < .1:
+                            self.current_goal_pos = self.mid_pos
+                            print(self.mid_pos.y)
+
+                    self.send_setpoint(self.mid_pos)
 
                     # self.mid_pos.x = self.end_of_wand_L.x
                     # self.mid_pos.y = self.end_of_wand_L.y
@@ -1029,7 +1049,7 @@ class HTTYD(Tab, HTTYD_tab_class):
                     #
 
                 elif self.flight_mode == FlightModeStates.LIFT:
-                    lift_height = 1
+                    lift_height = .5
 
                     self.send_setpoint(
                         Position(self.current_goal_pos.x,
@@ -1082,7 +1102,6 @@ class HTTYD(Tab, HTTYD_tab_class):
         # stm_power_cycle seems to stop the lighthouse deck from booting properly so we disconnect immediately afterwards.
         self.switch_flight_mode(FlightModeStates.DISCONNECTED)
         self.status = 'Disabled - ' + message
-        self.reset_all_positions()
 
     def wait_for_position_estimator(self, cf):
         logger.info('Waiting for estimator to find stable position...')
@@ -1185,14 +1204,22 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         logger.info('Switching Flight Mode to: %s', mode)
 
+        # send a message over the socket to start and stop logging
+        if str(mode) == "FlightModeStates.FOLLOW":
+            self.server.send_message(message={"flightmode" : 'follow'})
+        else:
+            self.server.send_message(message={"flightmode" : 'not follow'})
+            print('hii', mode)
+
     def send_setpoint(self, pos):
         # Wraps the send command to the crazyflie
         if self._cf is not None:
-            # if pos.z <= 0:
-            #     self._cf.commander.send_stop_setpoint()
-            # else:
-            #     self._cf.commander.send_position_setpoint(pos.x, pos.y, pos.z, pos.yaw)
-            self._cf.commander.send_position_setpoint(pos.x, pos.y, pos.z, pos.yaw)
+            if pos.z <= 0:
+                self._cf.commander.send_stop_setpoint()
+                self.switch_flight_mode(FlightModeStates.GROUNDED)
+            else:
+                self._cf.commander.send_position_setpoint(pos.x, pos.y, pos.z, pos.yaw)
+
 
     def reset_all_positions(self):
         # The position and rotation of the cf and wand obtained by the

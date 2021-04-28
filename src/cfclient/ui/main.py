@@ -66,7 +66,6 @@ from .dialogs.cf2config import Cf2ConfigDialog
 from .dialogs.inputconfigdialogue import InputConfigDialogue
 from .dialogs.logconfigdialogue import LogConfigDialogue
 
-
 __author__ = 'Bitcraze AB'
 __all__ = ['MainUI']
 
@@ -834,6 +833,7 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
                  QDir.toNativeSeparators(cfclient.config_path)))
 
     def closeAppRequest(self):
+        print("see ya")
         self.close()
         sys.exit(0)
 
