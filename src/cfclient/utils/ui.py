@@ -48,7 +48,7 @@ class UiUtils:
     COLOR_HACKER_BLACK = '#0A0B0B'
     COLOR_HACKER_GREEN = '#00FF2F'
 
-    FONT = QFont('Palantino')
+    FONT = QFont('Verdana')
 
     THEMES = ['Default', 'Navy blue', 'Hacker']
 

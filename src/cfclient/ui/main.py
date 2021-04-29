@@ -45,7 +45,6 @@ from cfclient.utils.ui import UiUtils
 from cfclient.utils.zmq_led_driver import ZMQLEDDriver
 from cfclient.utils.zmq_param import ZMQParamAccess
 from cflib.crazyflie import Crazyflie
-from cflib.crazyflie.log import LogConfig
 from cflib.crazyflie.mem import MemoryElement
 from PyQt5 import QtWidgets
 from PyQt5 import uic
@@ -65,6 +64,9 @@ from PyQt5.QtWidgets import QMessageBox
 from .dialogs.cf2config import Cf2ConfigDialog
 from .dialogs.inputconfigdialogue import InputConfigDialogue
 from .dialogs.logconfigdialogue import LogConfigDialogue
+
+# do not start a server from here, you wont be able to pass it into HTTYD
+from PoseParser.socket_class import SocketManager
 
 __author__ = 'Bitcraze AB'
 __all__ = ['MainUI']
@@ -622,6 +624,7 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
         self._update_ui_state()
 
     def closeEvent(self, event):
+        SocketManager.run = False
         self.hide()
         self.cf.close_link()
         Config().save_file()

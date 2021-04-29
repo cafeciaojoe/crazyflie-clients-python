@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+
 # -*- coding: utf-8 -*-
 #
 #     ||          ____  _ __
@@ -32,7 +32,7 @@ import time
 from enum import Enum
 
 from PyQt5 import uic
-from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject, pyqtProperty
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, pyqtProperty
 from PyQt5.QtCore import QStateMachine, QState, QEvent, QTimer
 from PyQt5.QtCore import QAbstractTransition
 from PyQt5.QtWidgets import QMessageBox
@@ -41,14 +41,12 @@ import cfclient
 from cfclient.ui.tab import Tab
 from cflib.crazyflie.log import LogConfig
 from cflib.crazyflie.syncLogger import SyncLogger
-from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
 from cflib.crazyflie import Crazyflie
 
-from cfclient.utils.config import Config
 from cflib.utils.power_switch import PowerSwitch
 
 from cfclient.utils.ui import UiUtils
-from cfclient.ui.tabs.socket_class import SocketManager
+from PoseParser.socket_class import SocketManager
 
 import threading
 
@@ -156,7 +154,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         self._helper_L = Crazyflie(rw_cache='./cache')
 
         # creates a class of the socket manager and sets it to be a server, capable of listening for connections
-        # self.server.listen()
+        self.server.listen()
 
         # the above helper cf instances are only assigned to _cf_L and _cf_R after they start logging
         self._cf = None
@@ -243,6 +241,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.followButton.clicked.connect(self.set_follow_mode)
         self.emergencyButton.clicked.connect(self.set_kill_engine)
 
+        self.tabWidget.tabCloseRequested.connect(self.exit_handler)
         self.batteryUpdatedSignal.connect(self._update_battery)
 
         #
@@ -253,11 +252,19 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.batteryBar.setTextVisible(False)
 
 
+    def exit_handler(self):
+        print("stopping server")
+        self.socket_manager.stop_server()
+
+
     def got_message(self, address ,data):
         # address is given but not used
         # Send the data to where you want it from here
         print('callback', data)
         pass
+
+    def ping(self):
+        return True
 
     def _setup_states(self):
         parent_state = QState()
@@ -661,6 +668,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         self._event.set()
 
     def _flight_mode_follow_entered(self):
+        self.current_goal_pos = self.valid_cf_pos
         logger.info('Entering follow mode')
         # TODO - RE INSTATE LAST WAND POS
         # self.last_valid_wand_pos = Position(0, 0, 1)
@@ -922,16 +930,16 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                         """find the mid point between two points a certain distance away from the wands"""
                         self.end_of_wand_L.x = self.valid_cf_pos_L.x + round(
-                            math.cos(math.radians(self.valid_cf_pos_L.roll)), 4) * self.length_from_wand
+                            math.cos(math.radians(self.valid_cf_pos_L.pitch)), 4) * self.length_from_wand
                         self.end_of_wand_L.y = self.valid_cf_pos_L.y + round(
-                            math.sin(math.radians(self.valid_cf_pos_L.roll)), 4) * self.length_from_wand
+                            math.cos(math.radians(self.valid_cf_pos_L.roll)), 4) * self.length_from_wand
                         self.end_of_wand_L.z = self.valid_cf_pos_L.z + round(
                             math.sin(math.radians(self.valid_cf_pos_L.pitch)), 4) * self.length_from_wand
 
                         self.end_of_wand_R.x = self.valid_cf_pos_R.x + round(
-                            math.cos(math.radians(self.valid_cf_pos_R.roll)), 4) * self.length_from_wand
+                            math.cos(math.radians(self.valid_cf_pos_R.pitch)), 4) * self.length_from_wand
                         self.end_of_wand_R.y = self.valid_cf_pos_R.y + round(
-                            math.sin(math.radians(self.valid_cf_pos_R.roll)), 4) * self.length_from_wand
+                            math.cos(math.radians(self.valid_cf_pos_R.roll)), 4) * self.length_from_wand
                         self.end_of_wand_R.z = self.valid_cf_pos_R.z + round(
                             math.sin(math.radians(self.valid_cf_pos_R.pitch)), 4) * self.length_from_wand
 
@@ -939,11 +947,13 @@ class HTTYD(Tab, HTTYD_tab_class):
                         self.mid_pos.y = self.end_of_wand_L.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand_L.y)
                         self.mid_pos.z = self.end_of_wand_L.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand_L.z)
 
+                        # if self.end_of_wand_L.distance_to(self.valid_cf_pos) < .1:
+                        #     self.current_goal_pos = self.end_of_wand_L
                         if self.mid_pos.distance_to(self.valid_cf_pos) < .1:
                             self.current_goal_pos = self.mid_pos
-                            print(self.mid_pos.y)
+                            print(self.end_of_wand_L.y)
 
-                    self.send_setpoint(self.mid_pos)
+                    self.send_setpoint(self.current_goal_pos)
 
                     # self.mid_pos.x = self.end_of_wand_L.x
                     # self.mid_pos.y = self.end_of_wand_L.y
@@ -1070,6 +1080,31 @@ class HTTYD(Tab, HTTYD_tab_class):
                     # print('goal pos =', self.current_goal_pos.z)
 
                 elif self.flight_mode == FlightModeStates.GROUNDED:
+                    if self.cf_pos_L.is_valid():
+                        self.valid_cf_pos_L = self.cf_pos_L
+
+                    if self.cf_pos_R.is_valid():
+                        self.valid_cf_pos_R = self.cf_pos_R
+
+                    if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
+                        """find the mid point between two points a certain distance away from the wands"""
+                        self.end_of_wand_L.x = self.valid_cf_pos_L.x + round(
+                            math.cos(math.radians(self.valid_cf_pos_L.pitch)), 4) * self.length_from_wand
+                        self.end_of_wand_L.y = self.valid_cf_pos_L.y + round(
+                            math.cos(math.radians(self.valid_cf_pos_L.roll)), 4) * self.length_from_wand
+                        self.end_of_wand_L.z = self.valid_cf_pos_L.z + round(
+                            math.sin(math.radians(self.valid_cf_pos_L.pitch)), 4) * self.length_from_wand
+
+                        self.end_of_wand_R.x = self.valid_cf_pos_R.x + round(
+                            math.cos(math.radians(self.valid_cf_pos_R.pitch)), 4) * self.length_from_wand
+                        self.end_of_wand_R.y = self.valid_cf_pos_R.y + round(
+                            math.cos(math.radians(self.valid_cf_pos_R.roll)), 4) * self.length_from_wand
+                        self.end_of_wand_R.z = self.valid_cf_pos_R.z + round(
+                            math.sin(math.radians(self.valid_cf_pos_R.pitch)), 4) * self.length_from_wand
+
+                    print(self.end_of_wand_L.z)
+
+
                     pass  # If gounded, the control is switched back to gamepad
 
                 time.sleep(0.001)
@@ -1209,7 +1244,7 @@ class HTTYD(Tab, HTTYD_tab_class):
             self.server.send_message(message={"flightmode" : 'follow'})
         else:
             self.server.send_message(message={"flightmode" : 'not follow'})
-            print('hii', mode)
+            print('sending flight mode over socket', mode)
 
     def send_setpoint(self, pos):
         # Wraps the send command to the crazyflie
