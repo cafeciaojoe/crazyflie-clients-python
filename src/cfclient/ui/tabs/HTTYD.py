@@ -89,8 +89,6 @@ class FlightModeStates(Enum):
     HOVERING = 4
     GROUNDED = 5
     DISCONNECTED = 6
-    CIRCLE = 7
-    RECORD = 8
 
 class BatteryStates:
     BATTERY, CHARGING, CHARGED, LOW_POWER = list(range(4))
@@ -154,7 +152,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         self._helper_L = Crazyflie(rw_cache='./cache')
 
         # creates a class of the socket manager and sets it to be a server, capable of listening for connections
-        self.server.listen()
+        # self.server.listen()
 
         # the above helper cf instances are only assigned to _cf_L and _cf_R after they start logging
         self._cf = None
@@ -241,7 +239,6 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.followButton.clicked.connect(self.set_follow_mode)
         self.emergencyButton.clicked.connect(self.set_kill_engine)
 
-        self.tabWidget.tabCloseRequested.connect(self.exit_handler)
         self.batteryUpdatedSignal.connect(self._update_battery)
 
         #
@@ -250,12 +247,6 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         # Start these ui elements invisible
         self.batteryBar.setTextVisible(False)
-
-
-    def exit_handler(self):
-        print("stopping server")
-        self.socket_manager.stop_server()
-
 
     def got_message(self, address ,data):
         # address is given but not used
@@ -308,7 +299,6 @@ class HTTYD(Tab, HTTYD_tab_class):
         follow.assignProperty(self.landButton, "enabled", True)
         follow.assignProperty(self.followButton, "enabled", False)
         follow.assignProperty(self.liftButton, "enabled", False)
-        follow.assignProperty(self.recordButton, "enabled", False)
         follow.entered.connect(self._flight_mode_follow_entered)
 
         # LIFT
@@ -789,9 +779,9 @@ class HTTYD(Tab, HTTYD_tab_class):
             position_hold_timer = 0
             spin = 0
             # this adds a little room for the x y and z values.
-            leeway = .25
-            self.length_from_wand = .4
-            self.circle_angle = 0.0
+            leeway_min = .2
+            leeway_max = .4
+            self.length_from_wand = .25
 
             # The main flight control loop, the behaviour
             # is controlled by the state of "FlightMode"
@@ -869,194 +859,66 @@ class HTTYD(Tab, HTTYD_tab_class):
                             self.send_setpoint(Position(self.current_goal_pos.x, self.current_goal_pos.y, 0.001))
                             self.switch_flight_mode(FlightModeStates.GROUNDED)
 
-                elif self.flight_mode == FlightModeStates.CIRCLE:
-                    self.send_setpoint(self.current_goal_pos)
-
-                    # Check if the cf has reached the goal position,
-                    # if it has set a new goal position
-                    if self.valid_cf_pos.distance_to(
-                            self.current_goal_pos) < self.circle_pos_threshold:
-
-                        if position_hold_timer >= self.position_hold_timelimit:
-
-                            position_hold_timer = 0
-
-                            # increment the angle
-                            self.circle_angle = ((self.circle_angle +
-                                                  self.circle_resolution)
-                                                 % 360)
-
-                            # Calculate the next position in
-                            # the circle to fly to
-                            self.current_goal_pos = Position(
-                                round(
-                                    math.cos(math.radians(self.circle_angle)),
-                                    4) * self.circle_radius,
-                                round(
-                                    math.sin(math.radians(self.circle_angle)),
-                                    4) * self.circle_radius,
-                                self.circle_height,
-                                yaw=self.circle_angle)
-
-                            logger.info('Setting position {}'.format(
-                                self.current_goal_pos))
-
-                        elif position_hold_timer == 0:
-
-                            time_of_pos_reach = time.time()
-                            # Add som time just to get going, it will be
-                            # overwritten in the next step.
-                            # Setting it higher than the imit will
-                            # break the code.
-                            position_hold_timer = 0.0001
-                        else:
-                            position_hold_timer = time.time(
-                            ) - time_of_pos_reach
-
                 elif self.flight_mode == FlightModeStates.FOLLOW:
-                    if self.cf_pos_L.is_valid():
+                    if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
                         self.valid_cf_pos_L = self.cf_pos_L
-
-                    if self.cf_pos_R.is_valid():
                         self.valid_cf_pos_R = self.cf_pos_R
 
-                    if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
                         # # Simple midpoint.
-                        # self.current_goal_pos.x = (self.valid_cf_pos_L.x + self.valid_cf_pos_R.x) / 2
-                        # self.current_goal_pos.y = (self.valid_cf_pos_L.y + self.valid_cf_pos_R.y) / 2
-                        # self.current_goal_pos.z = .25 + (self.valid_cf_pos_L.z + self.valid_cf_pos_R.z) / 2
-                        #
-                        # self.send_setpoint(self.current_goal_pos)
+                        self.mid_pos.x = (self.valid_cf_pos_L.x + self.valid_cf_pos_R.x) / 2
+                        self.mid_pos.y = (self.valid_cf_pos_L.y + self.valid_cf_pos_R.y) / 2
+                        self.mid_pos.z = -.25 + (self.valid_cf_pos_L.z + self.valid_cf_pos_R.z) / 2
 
-                        """find the mid point between two points a certain distance away from the wands"""
-                        self.end_of_wand_L.x = self.valid_cf_pos_L.x + round(
-                            math.cos(math.radians(self.valid_cf_pos_L.pitch)), 4) * self.length_from_wand
-                        self.end_of_wand_L.y = self.valid_cf_pos_L.y + round(
-                            math.cos(math.radians(self.valid_cf_pos_L.roll)), 4) * self.length_from_wand
-                        self.end_of_wand_L.z = self.valid_cf_pos_L.z + round(
-                            math.sin(math.radians(self.valid_cf_pos_L.pitch)), 4) * self.length_from_wand
+                        # """find the mid point between two points a certain distance away from the wands"""
+                        # self.end_of_wand_L.x = self.valid_cf_pos_L.x + round(
+                        #     math.cos(math.radians(self.valid_cf_pos_L.pitch)), 4) * self.length_from_wand
+                        # self.end_of_wand_L.y = self.valid_cf_pos_L.y + round(
+                        #     math.cos(math.radians(self.valid_cf_pos_L.roll)), 4) * self.length_from_wand
+                        # self.end_of_wand_L.z = self.valid_cf_pos_L.z + round(
+                        #     math.sin(math.radians(self.valid_cf_pos_L.pitch)), 4) * self.length_from_wand
 
-                        self.end_of_wand_R.x = self.valid_cf_pos_R.x + round(
-                            math.cos(math.radians(self.valid_cf_pos_R.pitch)), 4) * self.length_from_wand
-                        self.end_of_wand_R.y = self.valid_cf_pos_R.y + round(
-                            math.cos(math.radians(self.valid_cf_pos_R.roll)), 4) * self.length_from_wand
-                        self.end_of_wand_R.z = self.valid_cf_pos_R.z + round(
-                            math.sin(math.radians(self.valid_cf_pos_R.pitch)), 4) * self.length_from_wand
+                        # self.end_of_wand_R.x = self.valid_cf_pos_R.x + round(
+                        #     math.cos(math.radians(self.valid_cf_pos_R.pitch)), 4) * self.length_from_wand
+                        # self.end_of_wand_R.y = self.valid_cf_pos_R.y + round(
+                        #     math.cos(math.radians(self.valid_cf_pos_R.roll)), 4) * self.length_from_wand
+                        # self.end_of_wand_R.z = self.valid_cf_pos_R.z + round(
+                        #     math.sin(math.radians(self.valid_cf_pos_R.pitch)), 4) * self.length_from_wand
 
-                        self.mid_pos.x = self.end_of_wand_L.x + (.5) * (self.end_of_wand_R.x - self.end_of_wand_L.x)
-                        self.mid_pos.y = self.end_of_wand_L.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand_L.y)
-                        self.mid_pos.z = self.end_of_wand_L.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand_L.z)
+                        # self.mid_pos.x = self.end_of_wand_L.x + (.5) * (self.end_of_wand_R.x - self.end_of_wand_L.x)
+                        # self.mid_pos.y = self.end_of_wand_L.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand_L.y)
+                        # self.mid_pos.z = self.end_of_wand_L.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand_L.z)
 
-                        # if self.end_of_wand_L.distance_to(self.valid_cf_pos) < .1:
-                        #     self.current_goal_pos = self.end_of_wand_L
-                        if self.mid_pos.distance_to(self.valid_cf_pos) < .1:
+                        """if the next move is not too far away from the drone (ie too fast)"""
+                        if self.valid_cf_pos.distance_to(self.mid_pos) < leeway_min:
                             self.current_goal_pos = self.mid_pos
-                            print(self.end_of_wand_L.y)
+
+
+                        elif self.valid_cf_pos.distance_to(self.mid_pos) > leeway_max:
+                            self.current_goal_pos = self.valid_cf_pos
+                            print('drone too fast')
+
+                    else:
+                        self.current_goal_pos = self.valid_cf_pos
+                        print('wands not valid')
+
+
+                    # if (self.current_goal_pos.x < -1):
+                    #     self.current_goal_pos.x = -1
+                    # if (self.current_goal_pos.x > 1):
+                    #     self.current_goal_pos.x = 1
+                    # if (self.current_goal_pos.y < -1):
+                    #     self.current_goal_pos.y = -1
+                    # if (self.current_goal_pos.y > 1):
+                    #     self.current_goal_pos.y = 1
+                    # if (self.current_goal_pos.z < 0):
+                    #     self.current_goal_pos.z = 0
+                    # if (self.current_goal_pos.z > 1.6):
+                    #     self.current_goal_pos.z = 1.6
+                    # if (self.current_goal_pos.z < .8):
+                    #     self.current_goal_pos.z = .8
 
                     self.send_setpoint(self.current_goal_pos)
 
-                    # self.mid_pos.x = self.end_of_wand_L.x
-                    # self.mid_pos.y = self.end_of_wand_L.y
-                    # self.mid_pos.z = self.end_of_wand_L.z
-                    #
-                    # current_distance_L = self.valid_cf_pos.distance_to(self.end_of_wand_L)
-                    # current_distance_R = self.valid_cf_pos.distance_to(self.end_of_wand_R)
-                    # current_distance_mid = self.valid_cf_pos.distance_to(self.mid_pos)
-                    #
-                    #     smallest_distance_L = leeway
-                    #     smallest_distance_R = leeway
-                    #     smallest_distance_mid = leeway
-                    #
-                    #     if current_distance_L < smallest_distance_L:
-                    #         smallest_distance = current_distance_L
-                    #
-                    #         # logger.info('smallest distance L {}'.format(smallest_distance))
-                    #
-                    #     if current_distance_R < smallest_distance_R:
-                    #         smallest_distance_R = current_distance_R
-                    #
-                    #         # logger.info('smallest distance R {}'.format(smallest_distance_R))
-                    #
-                    #     if current_distance_mid < smallest_distance_mid:
-                    #         smallest_distance_mid = current_distance_mid
-                    #
-                    #         # logger.info('smallest distance R {}'.format(smallest_distance_R))
-                    #
-                    #     # """set the led intensity as a function of the smallest distance between the ends of each wand and the drone found"""
-                    #     # self.led_intensity = self.led_intensity_max - round((self.led_intensity_max - self.led_intensity_min) * ((((smallest_distance + smallest_distance_R) / 2) / leeway)), 0)
-                    #     # # print("setting LED intensity to ", led_intensity)
-                    #     # self.set_led_intensity(self.led_intensity)
-                    #
-                    #     # """set the led intensity as a function of the smallest distance between the midpoint and the drone found"""
-                    #     # self.led_intensity = self.led_intensity_max - round(
-                    #     #     (self.led_intensity_max - self.led_intensity_min) * (smallest_distance_mid / leeway), 0)
-                    #     # # print("setting LED intensity to ", led_intensity)
-                    #     # self.set_led_intensity(self.led_intensity)
-                    #
-                    #     """if the next move is not too far away from the drone (ie too fast)"""
-                    #     if self.valid_cf_pos.distance_to(self.mid_pos) < leeway:
-                    #         """if the wand ends are close to each other and the midpoint is close to the drone"""
-                    #         # if self.end_of_wand.distance_to(self.end_of_wand_R) < leeway:
-                    #
-                    #         self.current_goal_pos = self.mid_pos
-                    #         # self.colour_value -= .75
-                    #         # if self.colour_value <= 0:
-                    #         #     self.colour_value = 0
-                    #         # for x in range(12):
-                    #         #     self.set_led_color((255, self.colour_value, 255), x)
-                    #
-                    #         # elif self.end_of_wand.distance_to(self.end_of_wand_R) > leeway:
-                    #         #     print('wands to wide')
-                    #         #     self.current_goal_pos = self.valid_cf_pos
-                    #         #
-                    #         #     self.colour_value += .75
-                    #         #     if self.colour_value >= 255:
-                    #         #         self.colour_value = 255
-                    #         #     for x in range(12):
-                    #         #         self.set_led_color((255, self.colour_value, 255), x)
-                    #
-                    #     elif self.valid_cf_pos.distance_to(self.mid_pos) > leeway:
-                    #         self.current_goal_pos = self.valid_cf_pos
-                    #         print('drone too fast')
-                    #         # self.led_intensity -= .5
-                    #         # if self.led_intensity < self.led_intensity_min:
-                    #         #     self.led_intensity = self.led_intensity_min
-                    #         # self.set_led_intensity(self.led_intensity)
-                    #         # self.colour_value += .5
-                    #         # if self.colour_value >= 255:
-                    #         #     self.colour_value = 255
-                    #         # for x in range(12):
-                    #         #     self.set_led_color((255, self.colour_value, 255), x)
-                    #
-
-
-                # if (self.current_goal_pos.x < -1):
-                #     self.current_goal_pos.x = -1
-                # if (self.current_goal_pos.x > 1):
-                #     self.current_goal_pos.x = 1
-                # if (self.current_goal_pos.y < -1):
-                #     self.current_goal_pos.y = -1
-                # if (self.current_goal_pos.y > 1):
-                #     self.current_goal_pos.y = 1
-                # if (self.current_goal_pos.z < 0):
-                #     self.current_goal_pos.z = 0
-                # if (self.current_goal_pos.z > 1.6):
-                #     self.current_goal_pos.z = 1.6
-                # if (self.current_goal_pos.z < .8):
-                #     self.current_goal_pos.z = .8
-                    # else:
-                    #     self.current_goal_pos = self.valid_cf_pos
-                    #     print('wands not valid')
-                    #     # self.led_intensity -= .5
-                    #     # if self.led_intensity < self.led_intensity_min:
-                    #     #     self.led_intensity = self.led_intensity_min
-                    #     # self.set_led_intensity(self.led_intensity)
-                    #     # self.colour_value += .5
-                    #     # if self.colour_value >= 255:
-                    #     #     self.colour_value = 255
-                    #     # for x in range(12):
-                    #     #     self.set_led_color((255, self.colour_value, 255), x)
-                    #
 
                 elif self.flight_mode == FlightModeStates.LIFT:
                     lift_height = .5
@@ -1080,29 +942,29 @@ class HTTYD(Tab, HTTYD_tab_class):
                     # print('goal pos =', self.current_goal_pos.z)
 
                 elif self.flight_mode == FlightModeStates.GROUNDED:
-                    if self.cf_pos_L.is_valid():
-                        self.valid_cf_pos_L = self.cf_pos_L
-
-                    if self.cf_pos_R.is_valid():
-                        self.valid_cf_pos_R = self.cf_pos_R
-
-                    if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
-                        """find the mid point between two points a certain distance away from the wands"""
-                        self.end_of_wand_L.x = self.valid_cf_pos_L.x + round(
-                            math.cos(math.radians(self.valid_cf_pos_L.pitch)), 4) * self.length_from_wand
-                        self.end_of_wand_L.y = self.valid_cf_pos_L.y + round(
-                            math.cos(math.radians(self.valid_cf_pos_L.roll)), 4) * self.length_from_wand
-                        self.end_of_wand_L.z = self.valid_cf_pos_L.z + round(
-                            math.sin(math.radians(self.valid_cf_pos_L.pitch)), 4) * self.length_from_wand
-
-                        self.end_of_wand_R.x = self.valid_cf_pos_R.x + round(
-                            math.cos(math.radians(self.valid_cf_pos_R.pitch)), 4) * self.length_from_wand
-                        self.end_of_wand_R.y = self.valid_cf_pos_R.y + round(
-                            math.cos(math.radians(self.valid_cf_pos_R.roll)), 4) * self.length_from_wand
-                        self.end_of_wand_R.z = self.valid_cf_pos_R.z + round(
-                            math.sin(math.radians(self.valid_cf_pos_R.pitch)), 4) * self.length_from_wand
-
-                    print(self.end_of_wand_L.z)
+                    # if self.cf_pos_L.is_valid():
+                    #     self.valid_cf_pos_L = self.cf_pos_L
+                    #
+                    # if self.cf_pos_R.is_valid():
+                    #     self.valid_cf_pos_R = self.cf_pos_R
+                    #
+                    # if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
+                    #     """find the mid point between two points a certain distance away from the wands"""
+                    #     self.end_of_wand_L.x = self.valid_cf_pos_L.x + round(
+                    #         math.cos(math.radians(self.valid_cf_pos_L.pitch)), 4) * self.length_from_wand
+                    #     self.end_of_wand_L.y = self.valid_cf_pos_L.y + round(
+                    #         math.cos(math.radians(self.valid_cf_pos_L.roll)), 4) * self.length_from_wand
+                    #     self.end_of_wand_L.z = self.valid_cf_pos_L.z + round(
+                    #         math.sin(math.radians(self.valid_cf_pos_L.pitch)), 4) * self.length_from_wand
+                    #
+                    #     self.end_of_wand_R.x = self.valid_cf_pos_R.x + round(
+                    #         math.cos(math.radians(self.valid_cf_pos_R.pitch)), 4) * self.length_from_wand
+                    #     self.end_of_wand_R.y = self.valid_cf_pos_R.y + round(
+                    #         math.cos(math.radians(self.valid_cf_pos_R.roll)), 4) * self.length_from_wand
+                    #     self.end_of_wand_R.z = self.valid_cf_pos_R.z + round(
+                    #         math.sin(math.radians(self.valid_cf_pos_R.pitch)), 4) * self.length_from_wand
+                    #
+                    # print(self.end_of_wand_L.z)
 
 
                     pass  # If gounded, the control is switched back to gamepad
@@ -1227,7 +1089,6 @@ class HTTYD(Tab, HTTYD_tab_class):
         if self.flight_mode in [
             FlightModeStates.GROUNDED,
             FlightModeStates.DISCONNECTED,
-            FlightModeStates.RECORD
         ]:
             self._helper.mainUI.disable_input(False)
         else:

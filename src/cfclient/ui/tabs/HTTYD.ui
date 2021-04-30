@@ -186,43 +186,14 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>50</height>
+           </size>
+          </property>
           <property name="text">
            <string>Lift</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="pathButton">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="text">
-           <string>Fly along path</string>
-          </property>
-          <property name="checkable">
-           <bool>false</bool>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="circleButton">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="text">
-           <string>Fly in cicrcle</string>
           </property>
          </widget>
         </item>
@@ -240,7 +211,7 @@
           <property name="minimumSize">
            <size>
             <width>0</width>
-            <height>0</height>
+            <height>50</height>
            </size>
           </property>
           <property name="maximumSize">
@@ -253,23 +224,7 @@
            <enum>Qt::LeftToRight</enum>
           </property>
           <property name="text">
-           <string>Follow Mode</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="recordButton">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="text">
-           <string>Record Mode</string>
+           <string>Follow</string>
           </property>
          </widget>
         </item>
@@ -287,7 +242,7 @@
           <property name="minimumSize">
            <size>
             <width>40</width>
-            <height>0</height>
+            <height>50</height>
            </size>
           </property>
           <property name="maximumSize">
@@ -315,7 +270,7 @@
           <property name="minimumSize">
            <size>
             <width>0</width>
-            <height>20</height>
+            <height>50</height>
            </size>
           </property>
           <property name="maximumSize">
@@ -325,7 +280,7 @@
            </size>
           </property>
           <property name="text">
-           <string>Kill engines</string>
+           <string>Kill Engines</string>
           </property>
          </widget>
         </item>
@@ -848,10 +803,7 @@
  </widget>
  <tabstops>
   <tabstop>liftButton</tabstop>
-  <tabstop>pathButton</tabstop>
-  <tabstop>circleButton</tabstop>
   <tabstop>followButton</tabstop>
-  <tabstop>recordButton</tabstop>
   <tabstop>landButton</tabstop>
   <tabstop>emergencyButton</tabstop>
   <tabstop>cf_X</tabstop>

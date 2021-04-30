@@ -20,43 +20,6 @@
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
      <layout class="QGridLayout" name="gridLayout_2">
-      <item row="0" column="9">
-       <widget class="QProgressBar" name="batteryBar">
-        <property name="minimumSize">
-         <size>
-          <width>30</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>100</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="minimum">
-         <number>3400</number>
-        </property>
-        <property name="maximum">
-         <number>4180</number>
-        </property>
-        <property name="value">
-         <number>3800</number>
-        </property>
-        <property name="textVisible">
-         <bool>true</bool>
-        </property>
-        <property name="invertedAppearance">
-         <bool>false</bool>
-        </property>
-        <property name="textDirection">
-         <enum>QProgressBar::TopToBottom</enum>
-        </property>
-        <property name="format">
-         <string>Battery %v mV</string>
-        </property>
-       </widget>
-      </item>
       <item row="0" column="7">
        <spacer name="horizontalSpacer">
         <property name="orientation">
@@ -69,41 +32,6 @@
          </size>
         </property>
        </spacer>
-      </item>
-      <item row="0" column="10">
-       <widget class="QLineEdit" name="_aff_volts">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>60</width>
-          <height>30</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>60</width>
-          <height>40</height>
-         </size>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-        <property name="readOnly">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="8">
-       <widget class="QLabel" name="batteryLabel">
-        <property name="text">
-         <string>Battery:</string>
-        </property>
-       </widget>
       </item>
       <item row="0" column="3">
        <widget class="QComboBox" name="interfaceCombo">
@@ -224,14 +152,7 @@
         </layout>
        </widget>
       </item>
-      <item row="0" column="11">
-       <widget class="QLabel" name="label">
-        <property name="text">
-         <string> volts </string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="13">
+      <item row="0" column="9">
        <widget class="QProgressBar" name="linkQualityBar">
         <property name="minimumSize">
          <size>
@@ -259,7 +180,7 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="12">
+      <item row="0" column="8">
        <widget class="QLabel" name="linkQualityLabel">
         <property name="text">
          <string>Link Quality:</string>
