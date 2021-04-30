@@ -46,7 +46,6 @@ from cflib.crazyflie import Crazyflie
 from cflib.utils.power_switch import PowerSwitch
 
 from cfclient.utils.ui import UiUtils
-from PoseParser.socket_class import SocketManager
 
 import threading
 
@@ -130,13 +129,9 @@ class HTTYD(Tab, HTTYD_tab_class):
 
     batteryUpdatedSignal = pyqtSignal(int, object, object)
 
-    socket_manager = None
-
     def __init__(self, tabWidget, helper, *args):
         super(HTTYD, self).__init__(*args)
         self.setupUi(self)
-
-        self.server = SocketManager(self, server = True, port=5050)
 
         self._machine = QStateMachine()
         self._setup_states()
@@ -150,9 +145,6 @@ class HTTYD(Tab, HTTYD_tab_class):
         self._helper = helper
         self._helper_R = Crazyflie(rw_cache='./cache')
         self._helper_L = Crazyflie(rw_cache='./cache')
-
-        # creates a class of the socket manager and sets it to be a server, capable of listening for connections
-        # self.server.listen()
 
         # the above helper cf instances are only assigned to _cf_L and _cf_R after they start logging
         self._cf = None
@@ -1099,13 +1091,6 @@ class HTTYD(Tab, HTTYD_tab_class):
         self._machine.postEvent(FlightModeEvent(mode))
 
         logger.info('Switching Flight Mode to: %s', mode)
-
-        # send a message over the socket to start and stop logging
-        if str(mode) == "FlightModeStates.FOLLOW":
-            self.server.send_message(message={"flightmode" : 'follow'})
-        else:
-            self.server.send_message(message={"flightmode" : 'not follow'})
-            print('sending flight mode over socket', mode)
 
     def send_setpoint(self, pos):
         # Wraps the send command to the crazyflie
