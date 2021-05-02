@@ -59,7 +59,7 @@ available = [
     # ParamTab,
     # PlotTab,
     # LocoPositioningTab,
-    # LighthouseTab,
+    LighthouseTab,
     # LighthouseViewer,
     # QualisysTab,
     # LogClientTab,
