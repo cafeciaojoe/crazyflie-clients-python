@@ -28,6 +28,8 @@ The main file for the Crazyflie control application.
 """
 import logging
 import sys
+import webbrowser
+import os
 
 import cfclient
 from cfclient.ui.pose_logger import PoseLogger
@@ -66,7 +68,7 @@ from .dialogs.inputconfigdialogue import InputConfigDialogue
 from .dialogs.logconfigdialogue import LogConfigDialogue
 
 # do not start a server from here, you wont be able to pass it into HTTYD
-from PoseParser.socket_class import SocketManager
+from poseParser.socket_class import SocketManager
 
 __author__ = 'Bitcraze AB'
 __all__ = ['MainUI']
@@ -125,6 +127,9 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
                             rw_cache=cfclient.config_path + "/cache")
 
         cflib.crtp.init_drivers()
+
+        # launch poseNet
+        webbrowser.open('http://localhost:5000')
 
         zmq_params = ZMQParamAccess(self.cf)
         zmq_params.start()
@@ -624,6 +629,7 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
         self._update_ui_state()
 
     def closeEvent(self, event):
+        os.system("killall -9 'Google Chrome'")
         SocketManager.run = False
         self.hide()
         self.cf.close_link()

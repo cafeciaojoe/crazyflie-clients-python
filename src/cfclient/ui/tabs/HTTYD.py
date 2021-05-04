@@ -46,7 +46,7 @@ from cflib.crazyflie import Crazyflie
 from cflib.utils.power_switch import PowerSwitch
 
 from cfclient.utils.ui import UiUtils
-from PoseParser.socket_class import SocketManager
+from poseParser.socket_class import SocketManager
 
 import threading
 
@@ -152,7 +152,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         self._helper_L = Crazyflie(rw_cache='./cache')
 
         # creates a class of the socket manager and sets it to be a server, capable of listening for connections
-        # self.server.listen()
+        self.server.listen()
 
         # the above helper cf instances are only assigned to _cf_L and _cf_R after they start logging
         self._cf = None
@@ -486,8 +486,6 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         self.link_uri_flying = link_uri
         # username is the URI for the drone
-        self.server.send_message(message = {'username':link_uri})
-        print('sent', link_uri, type(link_uri))
 
         # log the battery state and voltage
         lg = LogConfig("Battery", 2000)
@@ -501,6 +499,10 @@ class HTTYD(Tab, HTTYD_tab_class):
             logger.warning(str(e))
 
         self._ui_update_timer.start(200)
+
+        # TODO check the thread does not hang here.
+        self.server.send_message(message = {'username':link_uri})
+        print('sent', link_uri, type(link_uri))
 
     def _disconnected(self, link_uri):
         """Callback for when the Crazyflie has been disconnected"""
