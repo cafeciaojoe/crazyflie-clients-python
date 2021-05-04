@@ -54,5 +54,3 @@ def coco():
 
 # Start server.
 app.run(host="0.0.0.0", debug=False)
-# test = ["hi", 7, "pewpew", [1, 2, 3]]
-# socket_manager.send_message(message=test)

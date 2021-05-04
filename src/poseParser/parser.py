@@ -127,7 +127,7 @@ class PoseParserNode:
 
         Args:
             address: The address of the sender.
-            message(str): The message received.
+            message: The message received.
         """
         self.callback(message)
         print(message)
