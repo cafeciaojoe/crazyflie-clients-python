@@ -28,6 +28,7 @@
 
 import logging
 import math
+import statistics
 import time
 from enum import Enum
 
@@ -707,6 +708,12 @@ class HTTYD(Tab, HTTYD_tab_class):
             log_position.add_variable('stateEstimate.pitch', 'float')
             log_position.add_variable('stateEstimate.yaw', 'float')
 
+            smoothing = 10
+
+            roll_history = [0] * smoothing
+            pitch_history = [0] * smoothing
+            yaw_history = [0] * smoothing
+
             state_estimate = [0, 0, 0, 0, 0, 0]
 
             data_1 = {}
@@ -759,12 +766,23 @@ class HTTYD(Tab, HTTYD_tab_class):
                                 state_estimate[0] = data_2['stateEstimate.x']
                                 state_estimate[1] = data_2['stateEstimate.y']
                                 state_estimate[2] = data_2['stateEstimate.z']
-                                state_estimate[3] = data_2['stateEstimate.roll']
-                                state_estimate[4] = data_2['stateEstimate.pitch']
-                                state_estimate[5] = data_2['stateEstimate.yaw']
+                                # state_estimate[3] = data_2['stateEstimate.roll']
+                                # state_estimate[4] = data_2['stateEstimate.pitch']
+                                # state_estimate[5] = data_2['stateEstimate.yaw']
+
+                                roll_history.append(data_2['stateEstimate.roll'])
+                                roll_history.pop(0)
+                                pitch_history.append(data_2['stateEstimate.pitch'])
+                                pitch_history.pop(0)
+                                yaw_history.append(data_2['stateEstimate.yaw'])
+                                yaw_history.pop(0)
+
+                                state_estimate[3] = statistics.mean(roll_history)
+                                state_estimate[4] = statistics.mean(pitch_history)
+                                state_estimate[5] = statistics.mean(yaw_history)
+
                                 self.cf_pos_dict[key] = Position(state_estimate[0], state_estimate[1], state_estimate[2],
                                                                  state_estimate[3], state_estimate[4], state_estimate[5])
-
                     # if any of the cf's leave the logger loop
 
                     if not cf:
@@ -794,6 +812,8 @@ class HTTYD(Tab, HTTYD_tab_class):
                 self.cf_pos = self.cf_pos_dict['cf_pos']
                 self.cf_pos_L = self.cf_pos_dict['cf_pos_L']
                 self.cf_pos_R = self.cf_pos_dict['cf_pos_R']
+
+
 
                 # print('start of the main control loop')
                 # Check that the position is valid and store it
@@ -868,18 +888,6 @@ class HTTYD(Tab, HTTYD_tab_class):
                         self.valid_cf_pos_L = self.cf_pos_L
                         self.valid_cf_pos_R = self.cf_pos_R
 
-                        offset_L = end_of_wand.calculate_offset(self.length_from_wand,self.valid_cf_pos_L.x,self.valid_cf_pos_L.y,self.valid_cf_pos_L.z, \
-                                                                        self.valid_cf_pos_L.roll, self.valid_cf_pos_L.pitch, self.valid_cf_pos_L.yaw)
-                        self.end_of_wand_L.x = offset_L[0]
-                        self.end_of_wand_L.y = offset_L[1]
-                        self.end_of_wand_L.z = offset_L[2]
-
-                        offset_R = end_of_wand.calculate_offset(self.length_from_wand,self.valid_cf_pos_R.x,self.valid_cf_pos_R.y,self.valid_cf_pos_R.z, \
-                                                                        self.valid_cf_pos_R.roll, self.valid_cf_pos_R.pitch, self.valid_cf_pos_R.yaw)
-                        self.end_of_wand_R.x = offset_R[0]
-                        self.end_of_wand_R.y = offset_R[1]
-                        self.end_of_wand_R.z = offset_R[2]
-
                         # # # Simple midpoint.
                         # self.mid_pos.x = (self.valid_cf_pos_L.x + self.valid_cf_pos_R.x) / 2
                         # self.mid_pos.y = (self.valid_cf_pos_L.y + self.valid_cf_pos_R.y) / 2
@@ -893,15 +901,42 @@ class HTTYD(Tab, HTTYD_tab_class):
                         #     self.current_goal_pos = Position(self.valid_cf_pos.x, self.valid_cf_pos.y, .5)
                         #     print(self.valid_cf_pos.distance_to(self.mid_pos))
 
-                        self.mid_pos.x = self.end_of_wand_L.x + (.5) * (self.end_of_wand_R.x - self.end_of_wand_L.x)
-                        self.mid_pos.y = self.end_of_wand_L.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand_L.y)
-                        self.mid_pos.z = self.end_of_wand_L.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand_L.z)
+                        # # Kristoffers offset
+                        # offset_L = end_of_wand.calculate_offset(self.length_from_wand,self.valid_cf_pos_L.x,self.valid_cf_pos_L.y,self.valid_cf_pos_L.z, \
+                        #                                                 self.valid_cf_pos_L.roll, self.valid_cf_pos_L.pitch, self.valid_cf_pos_L.yaw)
+                        # self.end_of_wand_L.x = offset_L[0]
+                        # self.end_of_wand_L.y = offset_L[1]
+                        # self.end_of_wand_L.z = offset_L[2]
+                        #
+                        # offset_R = end_of_wand.calculate_offset(self.length_from_wand,self.valid_cf_pos_R.x,self.valid_cf_pos_R.y,self.valid_cf_pos_R.z, \
+                        #                                                 self.valid_cf_pos_R.roll, self.valid_cf_pos_R.pitch, self.valid_cf_pos_R.yaw)
+                        # self.end_of_wand_R.x = offset_R[0]
+                        # self.end_of_wand_R.y = offset_R[1]
+                        # self.end_of_wand_R.z = offset_R[2]
+
+                        # self.end_of_wand_L.x = self.valid_cf_pos_L.x
+                        # self.end_of_wand_L.y = self.valid_cf_pos_L.y -.5
+                        # self.end_of_wand_L.z = self.valid_cf_pos_L.z
+
+                        # # Mid-pos Calculation
+                        # self.mid_pos.x = self.end_of_wand_L.x + (.5) * (self.end_of_wand_R.x - self.end_of_wand_L.x)
+                        # self.mid_pos.y = self.end_of_wand_L.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand_L.y)
+                        # self.mid_pos.z = self.end_of_wand_L.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand_L.z)
+                        # """if the next move is not too far away from the drone (ie if it is not too fast)"""
+                        # if self.valid_cf_pos.distance_to(self.mid_pos) < leeway_in:
+                        #     self.current_goal_pos = self.mid_pos
+                        #     self.status = "Follow Mode"
+                        #
+                        # elif self.valid_cf_pos.distance_to(self.mid_pos) > leeway_out:
+                        #     self.current_goal_pos = Position(self.valid_cf_pos.x, self.valid_cf_pos.y, self.valid_cf_pos.z)
+                        #     self.status = "Follow Mode - Hands Too Fast"
 
                         """if the next move is not too far away from the drone (ie if it is not too fast)"""
-                        if self.valid_cf_pos.distance_to(self.mid_pos) < leeway_in:
-                            self.current_goal_pos = self.mid_pos
+                        if self.valid_cf_pos.distance_to(self.end_of_wand_L) < leeway_in:
+                            self.current_goal_pos = self.end_of_wand_L
+                            self.status = "Follow Mode"
 
-                        elif self.valid_cf_pos.distance_to(self.mid_pos) > leeway_out:
+                        elif self.valid_cf_pos.distance_to(self.end_of_wand_L) > leeway_out:
                             self.current_goal_pos = Position(self.valid_cf_pos.x, self.valid_cf_pos.y, self.valid_cf_pos.z)
                             self.status = "Follow Mode - Hands Too Fast"
 

@@ -43,7 +43,7 @@ class PoseParserNode:
     socket_manager = None
     username = ""
     # TODO - Joe, this sets logging to files on and off, in the user study set it to false.
-    log_data = True
+    log_data = False
 
     def __init__(self):
         raise TypeError("Class is singleton, call instance() not init")
@@ -101,7 +101,8 @@ class PoseParserNode:
             self.publisher(trajectory_points)
         elif dict_name[0] == "username":
             self.username = data["username"]
-            print(self.username)
+            self.metrics.load_history(self.username)
+            print('loading user data for',self.username)
         elif dict_name[0] == "flightmode":
             # If key in dictionary is flightmode, save flightmode to check state and
             # decide on starting or stopping logging
@@ -110,8 +111,8 @@ class PoseParserNode:
                 self.log_data = True
             else:
                 self.log_data = False
-
-
+                self.metrics.save_history(self.username)
+                print('saving user data for', self.username)
 
     def listener(self):
         """
