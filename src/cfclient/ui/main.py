@@ -129,7 +129,8 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
         cflib.crtp.init_drivers()
 
         # launch poseNet
-        webbrowser.open('http://localhost:5000')
+        # todo reinstate if needed
+        # webbrowser.open('http://localhost:5000')
 
         zmq_params = ZMQParamAccess(self.cf)
         zmq_params.start()
@@ -224,7 +225,7 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
         self._log_error_signal.connect(self._logging_error)
 
         # self.batteryBar.setTextVisible(False)
-        # self.linkQualityBar.setTextVisible(False)
+        self.linkQualityBar.setTextVisible(False)
 
         # Connect link quality feedback
         self.cf.link_quality_updated.add_callback(self.linkQualitySignal.emit)

@@ -42,8 +42,8 @@ class PoseParserNode:
     metric_functions = None
     socket_manager = None
     username = ""
-    # TODO - Joe, this sets logging to files on and off
-    log_data = False
+    # TODO - Joe, this sets logging to files on and off, in the user study set it to false.
+    log_data = True
 
     def __init__(self):
         raise TypeError("Class is singleton, call instance() not init")
@@ -95,7 +95,7 @@ class PoseParserNode:
 
             # print('the data type is now', type(keypoints))
             # if self.DEFAULT_METRIC in PoseParserNode.metric_functions:
-            trajectory_points = PoseParserNode.metrics.execute_metric(self.DEFAULT_METRIC, keypoints)
+            trajectory_points = PoseParserNode.metrics.execute_metric(self.DEFAULT_METRIC, keypoints, 'leftWrist', 'rightWrist')
         #     if trajectory_points is not None:
         #         self.publisher(trajectory_points)
             self.publisher(trajectory_points)
@@ -130,7 +130,7 @@ class PoseParserNode:
             message: The message received.
         """
         self.callback(message)
-        print(message)
+        # print(message)
         return "DONE"
 
     def publisher(self, trajectory_parameters):

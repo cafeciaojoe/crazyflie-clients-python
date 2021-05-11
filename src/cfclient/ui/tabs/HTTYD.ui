@@ -10,6 +10,17 @@
     <height>731</height>
    </rect>
   </property>
+  <property name="minimumSize">
+   <size>
+    <width>82</width>
+    <height>0</height>
+   </size>
+  </property>
+  <property name="font">
+   <font>
+    <pointsize>18</pointsize>
+   </font>
+  </property>
   <property name="windowTitle">
    <string>Plot</string>
   </property>
@@ -18,9 +29,18 @@
     <layout class="QHBoxLayout" name="horizontalLayout_3">
      <item>
       <widget class="QLabel" name="statusLabel">
+       <property name="minimumSize">
+        <size>
+         <width>482</width>
+         <height>41</height>
+        </size>
+       </property>
        <property name="font">
         <font>
-         <pointsize>17</pointsize>
+         <pointsize>50</pointsize>
+         <weight>50</weight>
+         <bold>false</bold>
+         <kerning>true</kerning>
         </font>
        </property>
        <property name="styleSheet">
@@ -55,13 +75,6 @@
         </size>
        </property>
       </spacer>
-     </item>
-     <item>
-      <widget class="QLabel" name="label_3">
-       <property name="text">
-        <string>TextLabel</string>
-       </property>
-      </widget>
      </item>
      <item>
       <widget class="QLabel" name="batteryLabel">

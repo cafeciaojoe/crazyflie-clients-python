@@ -586,7 +586,7 @@ class LighthouseTab(Tab, lighthouse_tab_class):
 
     def _clear_state_indicator(self):
         container = self._basestation_stats_container
-        for row in range(1, 5):
+        for row in range(1, 9):
             for col in range(1, 5):
                 color_label = container.itemAtPosition(row, col).widget()
                 color_label.setStyleSheet(STYLE_NO_BACKGROUND)
@@ -619,9 +619,9 @@ class LighthouseTab(Tab, lighthouse_tab_class):
         container = self._basestation_stats_container
 
         # Ports the label number to the first index of the statistic id
-        stats_id_port = {1: 0, 2: 1, 3: 4, 4: 5}
+        stats_id_port = {1: 0, 2: 1, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8}
 
-        for bs in range(4):
+        for bs in range(8):
             for stats_indicator_id in range(1, 5):
                 bs_indicator_id = bs + 1
                 label = container.itemAtPosition(bs_indicator_id, stats_indicator_id).widget()
@@ -686,3 +686,4 @@ class LighthouseTab(Tab, lighthouse_tab_class):
             filename = names[0]
 
         LighthouseConfigFileManager.write(filename, geos=geos, calibs=calibs, system_type=system_type)
+
