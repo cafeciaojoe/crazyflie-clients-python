@@ -6,7 +6,7 @@ from poseParser.socket_class import SocketManager
 import numpy as np
 
 # Confidence score required to validate a keypoint set.
-MINIMUM_CONFIDENCE = 0
+MINIMUM_CONFIDENCE = 0.1
 
 # Mapping of parts to array as per posenet keypoints.
 PART_MAP = {
@@ -36,14 +36,14 @@ class PoseParserNode:
     """
     _instance = None
     # Options for default metric are any one string from the following:
-    # "demo_metric", "offset_midpoints", "centroid", "average_speed_of_points", "positional_demo", "centroid_coords"
+    # "demo_metric", "offset_midpoints", "centroid_position", "average_speed_of_points", "positional_demo", "centroid_coords"
     DEFAULT_METRIC = "offset_midpoints"
     metrics = None
     metric_functions = None
     socket_manager = None
     username = ""
     # TODO - Joe, this sets logging to files on and off, in the user study set it to false.
-    log_data = False
+    log_data = True
 
     def __init__(self):
         raise TypeError("Class is singleton, call instance() not init")
@@ -90,15 +90,26 @@ class PoseParserNode:
         dict_name = list(data.keys())
         # TODO - Not ideal, but split functions based on first key in dict
         if dict_name[0] == "poser" and self.log_data:
+            # create an empty dict that will be filled with the objects to be sent to HTTYD
+            dict_to_publish = {}
             points_data = data["poser"]
             keypoints = self.convert_to_dictionary(points_data["keypoints"])
 
-            # print('the data type is now', type(keypoints))
-            # if self.DEFAULT_METRIC in PoseParserNode.metric_functions:
-            trajectory_points = PoseParserNode.metrics.execute_metric(self.DEFAULT_METRIC, keypoints, 'leftWrist', 'rightWrist')
-        #     if trajectory_points is not None:
-        #         self.publisher(trajectory_points)
-            self.publisher(trajectory_points)
+            metric_result = PoseParserNode.metrics.execute_metric(self.DEFAULT_METRIC, keypoints, 'leftWrist', 'rightWrist')
+            dict_to_publish["proximity_to_y_axis_modular"] = metric_result["proximity"]
+
+            metric_result = PoseParserNode.metrics.execute_metric("proximity_to_y_axis", keypoints, 'leftWrist','rightWrist')
+            dict_to_publish["proximity_to_y_axis"] = metric_result["proximity"]
+
+            metric_result = PoseParserNode.metrics.execute_metric("centroid_position", keypoints, ["leftWrist", "rightWrist","leftAnkle", "rightAnkle"],[])
+            dict_to_publish["centroid_position"] = metric_result["uncategorized_data"]
+
+            # not working
+            # metric_result = PoseParserNode.metrics.execute_metric("average_speed_of_points", keypoints, ["leftWrist"],[])
+
+            print(metric_result)
+            if metric_result is not None:
+                self.publisher(dict_to_publish)
         elif dict_name[0] == "username":
             self.username = data["username"]
             self.metrics.load_history(self.username)
@@ -142,7 +153,7 @@ class PoseParserNode:
             trajectory_parameters(dict): A dictionary containing all data fields required to build a Trajectory message.
         """
         # print(trajectory_parameters["proximity"]) # 10.132.69.52
-        self.socket_manager.send_message(port=5050, message=(trajectory_parameters["proximity"]))
+        self.socket_manager.send_message(port=5050, message=trajectory_parameters)
 
     def test_metrics(self, keypoints):
         """
@@ -151,7 +162,7 @@ class PoseParserNode:
         This is more of an example of how to call metrics than functional code.
         """
         print(PoseParserNode.metrics.execute_metric("offset_midpoints", keypoints, "leftEye", "rightEye"))
-        print(PoseParserNode.metrics.execute_metric("centroid", keypoints, ["leftEye", "rightEye"]))
+        print(PoseParserNode.metrics.execute_metric("centroid_position", keypoints, ["leftEye", "rightEye"]))
         print(PoseParserNode.metrics.execute_metric("average_speed_of_points", keypoints, ["leftEye", "rightEye"]))
 
 
@@ -240,6 +251,49 @@ class PoseMetrics:
         except KeyError as e:
             print("Exception occured\n%s\nKeyPoints passed in:\n%s" % (str(e), str(keypoints)))
             return False
+
+    def proximity_to_y_axis(self, keypoints, point_1_name=DEFAULT_FOCUS_POINT_1, point_2_name=DEFAULT_FOCUS_POINT_2):
+        """
+        Finds the middle point between 2 x,y locations. Default points are left and right wrists.
+
+        Args:
+            keypoints(dict): A dictionary of all pose keypoints.
+            point_1_name(str): Name of keypoint 1 to use in metric.
+            point_2_name(str): Name of keypoint 2 to use in metric.
+
+        Returns:
+            dict: the proximity for the left and right hand to the y axis.
+        """
+
+        if point_1_name is None:
+            point_1_name = self.DEFAULT_FOCUS_POINT_1
+        if point_2_name is None:
+            point_2_name = self.DEFAULT_FOCUS_POINT_2
+
+        point_1 = keypoints[point_1_name]["position"]
+        point_2 = keypoints[point_2_name]["position"]
+        x_diff = abs(point_1[0] - point_2[0])
+        y_diff = abs(point_1[1] - point_2[1])
+        midpoint_x = max(point_1[0], point_2[0]) - (x_diff / 2)
+        midpoint_y = max(point_1[1], point_2[1]) - (y_diff / 2)
+        # proximity_x = ((midpoint_x - point_1[0]) / x_diff)
+        proximity_y = ((round(midpoint_y,2) - round(point_1[1],2)) / round(x_diff,2))
+        proximity_value = proximity_y
+
+        # proximity_value = ((proximity_x + proximity_y) / 2) -0.25
+
+        if proximity_value > 1:
+            proximity_value = 1
+        if proximity_value < -1:
+            proximity_value = -1
+
+        # Uncomment the following to have results logged to the console.
+        # print("Offset Mid\nPoint 1: %s @ %s, Point 2: %s @ %s, Mid-Point: %s, Proximity Score: %s" %
+        #               (point_1_name, str(point_1), point_2_name, str(point_2), str((midpoint_x, midpoint_y)),
+        #                str((proximity_x + proximity_y) / 2)))
+
+        return self.create_return_dictionary(x=midpoint_x, y=midpoint_y,
+                                             proximity_value=round(proximity_value,2))
 
     def midpoint(self, keypoints, point_1_name=DEFAULT_FOCUS_POINT_1, point_2_name=DEFAULT_FOCUS_POINT_2):
         """
@@ -583,9 +637,10 @@ class PoseMetrics:
         "positional_demo": positional_demo,
         "demo_metric": simulation_pose_demo,
         "offset_midpoints": midpoint,
-        "centroid": centroid_movement_speed,
-        "centroid_coords": centroid,
-        "average_speed_of_points": avg_speed_of_points
+        "centroid_movement_speed": centroid_movement_speed,
+        "centroid_position": centroid,
+        "average_speed_of_points": avg_speed_of_points,
+        "proximity_to_y_axis": proximity_to_y_axis
     }
 
     def execute_metric(self, metric_name, keypoint_dict, first_list=None, second_list=None):
