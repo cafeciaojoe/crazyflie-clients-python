@@ -92,7 +92,9 @@ class PoseParserNode:
         if dict_name[0] == "poser" and self.log_data:
             # create an empty dict that will be filled with the objects to be sent to HTTYD
             dict_to_publish = {}
+            # all the points in frame in poser
             points_data = data["poser"]
+            # somehting to do with history here?
             keypoints = self.convert_to_dictionary(points_data["keypoints"])
 
             metric_result = PoseParserNode.metrics.execute_metric(self.DEFAULT_METRIC, keypoints, 'leftWrist', 'rightWrist')
@@ -101,14 +103,15 @@ class PoseParserNode:
             metric_result = PoseParserNode.metrics.execute_metric("proximity_to_y_axis", keypoints, 'leftWrist','rightWrist')
             dict_to_publish["proximity_to_y_axis"] = metric_result["proximity"]
 
-            metric_result = PoseParserNode.metrics.execute_metric("centroid_position", keypoints, ["leftWrist", "rightWrist","leftAnkle", "rightAnkle"],[])
-            dict_to_publish["centroid_position"] = metric_result["uncategorized_data"]
+            # metric_result = PoseParserNode.metrics.execute_metric("centroid_position", keypoints, ["leftWrist", "rightWrist","leftAnkle", "rightAnkle"],[])
+            # dict_to_publish["centroid_position"] = metric_result["uncategorized_data"]
 
             # not working
             # metric_result = PoseParserNode.metrics.execute_metric("average_speed_of_points", keypoints, ["leftWrist"],[])
 
             print(metric_result)
-            if metric_result is not None:
+            if get(dict_to_publish) is not None:
+            # if metric_result is not None:
                 self.publisher(dict_to_publish)
         elif dict_name[0] == "username":
             self.username = data["username"]

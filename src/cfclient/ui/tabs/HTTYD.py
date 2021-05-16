@@ -177,6 +177,12 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.switch_flight_mode(FlightModeStates.DISCONNECTED)
         self.path_pos_threshold = 0.2
 
+        # initial variabls for thresholds.py
+        self.loops_spent_training = 0
+        self.loops_spent_close = 0;
+        self.loops_spent_wide = 0;
+        self.isUnlocked = False
+
         self.charging = False
         self.low_power = False
 
@@ -654,6 +660,34 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.cf_R_Pitch.setText(("%0.2f" % self.cf_pos_R.pitch))
         self.cf_R_Yaw.setText(("%0.2f" % self.cf_pos_R.yaw))
 
+    def wide_hands(self, lh_pos, cf_pos, rh_pos):
+        is_wide = False
+        if lh_pos.distance_to(cf_pos) > .4 and rh_pos.distance_to(cf_pos) > .4:
+            is_wide = True
+        return is_wide
+
+    def check_condition(self, lh_pos, cf_pos, rh_pos):
+
+        if not self.isUnlocked:
+            self.loops_spent_training = self.loops_spent_training + 1
+            print('loops_spent_with_training', self.loops_spent_training)
+
+            if self.wide_hands(lh_pos, cf_pos, rh_pos):
+                self.loops_spent_wide += 1
+            else:
+                self.loops_spent_close += 1
+
+            if (self.loops_spent_training > 10000):
+                print('unlocking')
+                print('loops_spent_wide', self.loops_spent_wide)
+                print('loops_spent_close', self.
+                      loops_spent_close)
+                self.isUnlocked = True
+        # elif not self.isUnlocked:
+        #     print('training....')
+        # else:
+        #    print("UNLOCKED!")
+
     def _flight_mode_land_entered(self):
         self.current_goal_pos = self.valid_cf_pos
         logger.info('Trying to land at: x: {} y: {}'.format(
@@ -827,7 +861,8 @@ class HTTYD(Tab, HTTYD_tab_class):
                         FlightModeStates.GROUNDED,
                         ]:
                         message = None
-                        if self.valid_cf_pos.distance_to(Position(0, 0, 0)) > 1:
+                        # todo set back to one
+                        if self.valid_cf_pos.distance_to(Position(0, 0, 0)) > 100:
                             message = 'Drone not in centre of flying area'
                         if self.charging == True:
                             message = 'The connected drone is on the charger, turn off charging drone and try again'
@@ -888,11 +923,8 @@ class HTTYD(Tab, HTTYD_tab_class):
                         self.valid_cf_pos_L = self.cf_pos_L
                         self.valid_cf_pos_R = self.cf_pos_R
 
-                        # # # Simple midpoint.
-                        # self.mid_pos.x = (self.valid_cf_pos_L.x + self.valid_cf_pos_R.x) / 2
-                        # self.mid_pos.y = (self.valid_cf_pos_L.y + self.valid_cf_pos_R.y) / 2
-                        # self.mid_pos.z = -.25 + (self.valid_cf_pos_L.z + self.valid_cf_pos_R.z) / 2
-                        #
+                        self.check_condition(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R)
+
                         # """if the next move is not too far away from the drone (ie too fast)"""
                         # if self.valid_cf_pos.distance_to(self.mid_pos) < leeway_min:
                         #     self.current_goal_pos = self.mid_pos
@@ -922,46 +954,56 @@ class HTTYD(Tab, HTTYD_tab_class):
                         # self.mid_pos.x = self.end_of_wand_L.x + (.5) * (self.end_of_wand_R.x - self.end_of_wand_L.x)
                         # self.mid_pos.y = self.end_of_wand_L.y + (.5) * (self.end_of_wand_R.y - self.end_of_wand_L.y)
                         # self.mid_pos.z = self.end_of_wand_L.z + (.5) * (self.end_of_wand_R.z - self.end_of_wand_L.z)
+
                         # """if the next move is not too far away from the drone (ie if it is not too fast)"""
-                        # if self.valid_cf_pos.distance_to(self.mid_pos) < leeway_in:
-                        #     self.current_goal_pos = self.mid_pos
+                        # if self.valid_cf_pos.distance_to(self.end_of_wand_L) < leeway_in:
+                        #     self.current_goal_pos = self.end_of_wand_L
                         #     self.status = "Follow Mode"
                         #
-                        # elif self.valid_cf_pos.distance_to(self.mid_pos) > leeway_out:
-                        #     self.current_goal_pos = Position(self.valid_cf_pos.x, self.valid_cf_pos.y, self.valid_cf_pos.z)
+                        # elif self.valid_cf_pos.distance_to(self.end_of_wand_L) > leeway_out:
+                        #     self.current_goal_pos = Position(self.valid_cf_pos.x, self.valid_cf_pos.y,
+                        #                                      self.valid_cf_pos.z)
                         #     self.status = "Follow Mode - Hands Too Fast"
 
+                        # # Simple midpoint.
+                        self.mid_pos.x = (self.valid_cf_pos_L.x + self.valid_cf_pos_R.x) / 2
+                        self.mid_pos.y = (self.valid_cf_pos_L.y + self.valid_cf_pos_R.y) / 2
+                        self.mid_pos.z = -.25 + (self.valid_cf_pos_L.z + self.valid_cf_pos_R.z) / 2
+
                         """if the next move is not too far away from the drone (ie if it is not too fast)"""
-                        if self.valid_cf_pos.distance_to(self.end_of_wand_L) < leeway_in:
-                            self.current_goal_pos = self.end_of_wand_L
+                        if self.valid_cf_pos.distance_to(self.mid_pos) < leeway_in:
+                            self.current_goal_pos = self.mid_pos
                             self.status = "Follow Mode"
 
-                        elif self.valid_cf_pos.distance_to(self.end_of_wand_L) > leeway_out:
+                        elif self.valid_cf_pos.distance_to(self.mid_pos) > leeway_out:
                             self.current_goal_pos = Position(self.valid_cf_pos.x, self.valid_cf_pos.y, self.valid_cf_pos.z)
                             self.status = "Follow Mode - Hands Too Fast"
-
                     else:
                         self.current_goal_pos = self.valid_cf_pos
                         self.status = "Follow Mode - Wands Not Valid"
 
+                    if self.isUnlocked is False:
+                        self.current_goal_pos.x = 0
+                        self.current_goal_pos.y = 0
 
-                    # if (self.current_goal_pos.x < -1):
-                    #     self.current_goal_pos.x = -1
-                    # if (self.current_goal_pos.x > 1):
-                    #     self.current_goal_pos.x = 1
-                    # if (self.current_goal_pos.y < -1):
-                    #     self.current_goal_pos.y = -1
-                    # if (self.current_goal_pos.y > 1):
-                    #     self.current_goal_pos.y = 1
-                    # if (self.current_goal_pos.z < 0):
-                    #     self.current_goal_pos.z = 0
-                    # if (self.current_goal_pos.z > 1.6):
-                    #     self.current_goal_pos.z = 1.6
-                    # if (self.current_goal_pos.z < .8):
-                    #     self.current_goal_pos.z = .8
+
+                    #the edge of the map
+                    if (self.current_goal_pos.x < -1):
+                        self.current_goal_pos.x = -1
+                    if (self.current_goal_pos.x > 1):
+                        self.current_goal_pos.x = 1
+                    if (self.current_goal_pos.y < -1.4):
+                        self.current_goal_pos.y = -1.4
+                    if (self.current_goal_pos.y > 1.4):
+                        self.current_goal_pos.y = 1.4
+                    if (self.current_goal_pos.z < 0):
+                        self.current_goal_pos.z = 0
+                    if (self.current_goal_pos.z > 2):
+                        self.current_goal_pos.z = 2
+                    if (self.current_goal_pos.z < .2):
+                        self.current_goal_pos.z = .2
 
                     self.send_setpoint(self.current_goal_pos)
-
 
                 elif self.flight_mode == FlightModeStates.LIFT:
                     lift_height = .5
@@ -985,6 +1027,9 @@ class HTTYD(Tab, HTTYD_tab_class):
                     # print('goal pos =', self.current_goal_pos.z)
 
                 elif self.flight_mode == FlightModeStates.GROUNDED:
+                    # if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
+                    #     self.valid_cf_pos_L = self.cf_pos_L
+                    #     self.valid_cf_pos_R = self.cf_pos_R
                     pass  # If gounded, the control is switched back to gamepad
 
                 time.sleep(0.001)
