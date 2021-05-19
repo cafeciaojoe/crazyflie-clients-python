@@ -176,14 +176,19 @@ class HTTYD(Tab, HTTYD_tab_class):
         self._cf_status_R = self.cfStatusLabel_R.text()
         self._status = self.statusLabel.text()
 
-        # initial flight mode
+        # initial flight modes
+        # depends on how far off the ground the cf is calibrated
+        self.floor_height = -1.25
+        # divides the goal pos (x) by n eg x/n, x/n-1, x/n-2... x/1
+        self.lift_rate = 3
+        self.spin_rate = .7
+        self.isTraining = False
         self.flying_enabled = False
         self.switch_flight_mode(FlightModeStates.DISCONNECTED)
         self.path_pos_threshold = 0.2
         self.max_training_variance = .05
         self.max_training_loops = 1000
         self.isUnlocked = False
-        self.lock_yaw = False
 
         self.charging = False
         self.low_power = False
@@ -684,7 +689,8 @@ class HTTYD(Tab, HTTYD_tab_class):
         if not self.isUnlocked:
             # print('not unlocked')
             if self.train_hand_position(lh_pos, cf_pos, rh_pos) is True:
-                print('training loop number', len(self.diff_dict['diff_Lx']))
+                self.isTraining = True
+                # print('training loop number', len(self.diff_dict['diff_Lx']))
                 if len(self.diff_dict['diff_Lx']) > self.max_training_loops:
                     print('unlocking')
                     self.isUnlocked = True
@@ -692,6 +698,7 @@ class HTTYD(Tab, HTTYD_tab_class):
             # ie if train_hand_position is False and you have more than 1 data point
             # ie ie dont clear the diff_dict unless you have more than x readings with high variance
             elif len(self.diff_dict['diff_Lx']) > 10:
+                self.isTraining = False
                 print('resetting')
                 self.diff_dict.clear()
 
@@ -730,23 +737,11 @@ class HTTYD(Tab, HTTYD_tab_class):
 
             false_list = [
                 0 < x < self.max_training_variance
-                # TODO add in check that x is not all 0 values (this indicates drone is still starting up)
                 # for x in variance_list
                 for x in min_max_list
             ]
-
-            # TODO remove (equivalent to above)
-            # false_list = [False, False, False, False, False, False]
-            # # loops through each median and checks if it is below the max variance
-            # for x in range(0, len(variance_list)):
-            #     if variance_list[x] < self.max_training_variance and variance_list[x] > 0:
-            #         # print('value x ',median_list[x],'is less than',self.max_training_variance)
-            #         false_list[x] = True
-            #     else:
-            #         false_list[x] = False
-
             # print('variance', statistics.mean(variance_list))
-            print('variance', statistics.mean(min_max_list))
+            # print('variance', statistics.mean(min_max_list))
 
             if all(false_list):
                 # these are the relative xyz coordinates of the  left and right handpads relative to the drone
@@ -817,7 +812,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.current_goal_pos = self.valid_cf_pos
         logger.info('Trying to land at: x: {} y: {}'.format(
             self.current_goal_pos.x, self.current_goal_pos.y))
-        self.land_rate = 1
+        self.initial_land_height = self.current_goal_pos.z
         print('flight_mode_land_entered')
         self._event.set()
 
@@ -832,8 +827,6 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.current_goal_pos = self.valid_cf_pos
         logger.info('Trying to lift at: {}'.format(
             self.current_goal_pos))
-        # divides the goal pos (x) by n eg x/n, x/n-1, x/n-2... x/1
-        self.lift_rate = 3
         self._event.set()
 
     def _flight_mode_hovering_entered(self):
@@ -958,10 +951,10 @@ class HTTYD(Tab, HTTYD_tab_class):
             lost_tracking_threshold = 2500
             frames_without_tracking = 0
             position_hold_timer = 0
+            spin_slow_down = self.spin_rate
             spin = 0
-            spin_rate = .5
             # this adds a little room for the x y and z values.
-            leeway_in = .15
+            leeway_in = .2
             leeway_out = .2
             self.length_from_wand = .25
 
@@ -1021,64 +1014,31 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                 if self.flight_mode == FlightModeStates.LAND:
                     if self.cf_pos.is_valid():
-                        spin += spin_rate
+                        spin += self.spin_rate
+                        self.initial_land_height -= .001
                         self.send_setpoint(
-                            Position(
-                                self.current_goal_pos.x,
-                                self.current_goal_pos.y,
-                                (self.current_goal_pos.z / self.land_rate),
-                                yaw=spin))
-                        # Check if the cf has reached the  position,
-                        # if it has set a new position
-
-                        if self.valid_cf_pos.distance_to(
-                                Position(self.current_goal_pos.x,
-                                         self.current_goal_pos.y,
-                                         self.current_goal_pos.z / self.land_rate
-                                         )) < self.path_pos_threshold:
-                            self.land_rate *= 1.1
-
-                        if self.land_rate > 1000:
-                            self.send_setpoint(Position(self.current_goal_pos.x, self.current_goal_pos.y, -1.2))
-                            self.switch_flight_mode(FlightModeStates.GROUNDED)
+                            Position(self.current_goal_pos.x,
+                                     self.current_goal_pos.y, self.initial_land_height, yaw = spin))
 
                 elif self.flight_mode == FlightModeStates.FOLLOW:
+                    self.isUnlocked = True
                     if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
                         self.valid_cf_pos_L = self.cf_pos_L
                         self.valid_cf_pos_R = self.cf_pos_R
 
-                        # # # Simple midpoint.
-                        # self.mid_pos.x = (self.valid_cf_pos_L.x + self.valid_cf_pos_R.x) / 2
-                        # self.mid_pos.y = (self.valid_cf_pos_L.y + self.valid_cf_pos_R.y) / 2
-                        # self.mid_pos.z = -.25 + (self.valid_cf_pos_L.z + self.valid_cf_pos_R.z) / 2
-                        #
-                        # """if the next move is not too far away from the drone (ie if it is not too fast)"""
-                        # if self.valid_cf_pos.distance_to(self.mid_pos) < leeway_in:
-                        #     self.current_goal_pos = self.mid_pos
-                        #     self.status = "Follow Mode"
-                        #
-                        # elif self.valid_cf_pos.distance_to(self.mid_pos) > leeway_out:
-                        #     self.current_goal_pos = Position(self.valid_cf_pos.x, self.valid_cf_pos.y, self.valid_cf_pos.z)
-                        #     self.status = "Follow Mode - Hands Too Fast"
+                        spin = (self.valid_cf_pos_L.yaw + self.valid_cf_pos_R.yaw) / 2 + 180
 
-                        if self.check_condition(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R, leeway_in) is True:
-                            spin = (self.valid_cf_pos_L.yaw + self.valid_cf_pos_R.yaw) / 2 + 180
+                        self.mid_pos.x = (self.end_of_wand_L.x + self.end_of_wand_R.x) / 2
+                        self.mid_pos.y = (self.end_of_wand_L.y + self.end_of_wand_R.y) / 2
+                        self.mid_pos.z = (self.end_of_wand_L.z + self.end_of_wand_R.z) / 2
 
-                            self.mid_pos.x = (self.end_of_wand_L.x + self.end_of_wand_R.x) / 2
-                            self.mid_pos.y = (self.end_of_wand_L.y + self.end_of_wand_R.y) / 2
-                            self.mid_pos.z = (self.end_of_wand_L.z + self.end_of_wand_R.z) / 2
+                        self.current_goal_pos = Position(self.mid_pos.x, self.mid_pos.y, self.mid_pos.z, yaw=spin)
+                        self.status = "Follow Mode"
 
-                            self.current_goal_pos = Position(self.mid_pos.x, self.mid_pos.y, self.mid_pos.z, yaw = spin)
-                            self.status = "Follow Mode"
-                        else:
-                            spin += spin_rate
-                            self.current_goal_pos = Position(self.valid_cf_pos.x, self.valid_cf_pos.y, self.valid_cf_pos.z, yaw = spin)
-                            self.status = "Hands Too Fast or Wrong Position"
+                        if self.check_condition(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R, leeway_in) is False:
+                            self.switch_flight_mode(FlightModeStates.HOVERING)
                     else:
-                        spin += spin_rate
-                        self.current_goal_pos = Position(self.valid_cf_pos.x, self.valid_cf_pos.y, self.valid_cf_pos.z,
-                                                         yaw=spin)
-                        self.status = "Follow Mode - Wands Not Valid"
+                        self.switch_flight_mode(FlightModeStates.HOVERING)
 
                     #the edge of the map
                     if (self.current_goal_pos.x < -1):
@@ -1098,8 +1058,8 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                 elif self.flight_mode == FlightModeStates.LIFT:
                     if self.cf_pos.is_valid():
-                        lift_height = .2
-                        spin += spin_rate
+                        lift_height = self.floor_height + 1
+                        spin += self.spin_rate
                         self.send_setpoint(
                             Position(self.current_goal_pos.x,
                                      self.current_goal_pos.y, (lift_height / self.lift_rate)))
@@ -1115,34 +1075,27 @@ class HTTYD(Tab, HTTYD_tab_class):
                                 self.switch_flight_mode(FlightModeStates.HOVERING)
 
                 elif self.flight_mode == FlightModeStates.HOVERING:
-                    spin += spin_rate
+                    # assigned to local object as we will be reducing it when training is true
+                    self.isUnlocked = False
+                    spin += self.spin_rate
                     if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
                         self.valid_cf_pos_L = self.cf_pos_L
                         self.valid_cf_pos_R = self.cf_pos_R
-
                     if self.valid_cf_pos_L.distance_to(self.valid_cf_pos) < 1 and \
                             self.valid_cf_pos_R.distance_to(self.valid_cf_pos_R) < 1:
                         self.check_hand_position(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R)
-                        spin = (self.valid_cf_pos_L.yaw + self.valid_cf_pos_R.yaw)/2 + 180
-
-                        if self.isUnlocked:
+                        if self.isTraining is True:
+                            spin_slow_down -= (self.spin_rate/self.max_training_loops)
+                            print('spin rate', spin_slow_down)
+                            spin += spin_slow_down
+                        else:
+                            spin_slow_down = 0
+                        if self.isUnlocked or self.check_condition(self.valid_cf_pos_L,self.valid_cf_pos,self.valid_cf_pos_R,leeway_in):
+                            spin_slow_down = 0
                             self.switch_flight_mode(FlightModeStates.FOLLOW)
-
                     self.send_setpoint(Position(self.current_goal_pos.x, self.current_goal_pos.y, self.current_goal_pos.z, yaw=spin))
 
                 elif self.flight_mode == FlightModeStates.GROUNDED:
-                    # if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
-                    #     self.valid_cf_pos_L = self.cf_pos_L
-                    #     self.valid_cf_pos_R = self.cf_pos_R
-                    #
-                    # if self.valid_cf_pos_L.distance_to(self.valid_cf_pos) < 1 and \
-                    #         self.valid_cf_pos_R.distance_to(self.valid_cf_pos_R) < 1:
-                    #     self.check_hand_position(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R)
-                    #
-                    # if self.isUnlocked:
-                    #     if self.check_condition(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R, leeway_in) is True:
-                    #         print('contact')
-
                     pass  # If gounded, the control is switched back to gamepad
 
                 time.sleep(0.001)
@@ -1286,7 +1239,7 @@ class HTTYD(Tab, HTTYD_tab_class):
     def send_setpoint(self, pos):
         # Wraps the send command to the crazyflie
         if self._cf is not None:
-            if pos.z <= -1.2:
+            if pos.z <= self.floor_height:
                 self._cf.commander.send_stop_setpoint()
                 self.switch_flight_mode(FlightModeStates.GROUNDED)
             else:
