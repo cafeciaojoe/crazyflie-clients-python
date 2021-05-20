@@ -182,6 +182,9 @@ class HTTYD(Tab, HTTYD_tab_class):
         # divides the goal pos (x) by n eg x/n, x/n-1, x/n-2... x/1
         self.lift_rate = 3
         self.spin_rate = .7
+        self.starting_freq = 0
+        self.current_freq = 0
+        self.freq_counter = 0
         self.isTraining = False
         self.flying_enabled = False
         self.switch_flight_mode(FlightModeStates.DISCONNECTED)
@@ -533,6 +536,9 @@ class HTTYD(Tab, HTTYD_tab_class):
         logger.info("Crazyflie '_cf' disconnected from {}".format(link_uri))
         self.cfStatus = ': not connected'
 
+        self._cf_L.param.set_value('sound.freq', 0)
+        self._cf_R.param.set_value('sound.freq', 0)
+
         self._helper_L.close_link()
         self._helper_R.close_link()
 
@@ -575,6 +581,9 @@ class HTTYD(Tab, HTTYD_tab_class):
         logger.debug("Crazyflie '_cf_L' connected to {}".format(link_uri))
         self.cfStatus_L = ': connected'
 
+        self._helper_L.param.set_value('sound.effect', 12)
+        self._helper_L.param.set_value('sound.freq', 0)
+
         self.t3 = threading.Thread(target=self.flight_logger, args=(self._helper_L, 'cf_pos_L',link_uri))
         self.t3.start()
 
@@ -599,6 +608,64 @@ class HTTYD(Tab, HTTYD_tab_class):
         if self._cf_L == None:
             self._cf_L = self._helper_L
 
+        self.sound_controller(self._cf_L)
+
+    def sound_controller(self,cf):
+        # if self.isTraining:
+        #     self.current_freq += 1
+        #     cf.param.set_value('sound.freq',self.current_freq)
+        # else:
+        #     self.current_freq = self.starting_freq
+        #     freq_list = [0,0,0,0]
+        #     # cf.param.set_value('sound.freq', 0)
+        #     if self.freq_counter >= (len(freq_list)-1):
+        #         self.freq_counter = 0
+        #     else:
+        #         self.freq_counter += 1
+        #     if self.link_uri_flying[-10:] == 'A0A0A0A0A3':
+        #         freq_list = [10,0,7,6]
+        #         # print(freq_list[self.freq_counter])
+        #         print(self.freq_counter)
+        #         cf.param.set_value('sound.freq', freq_list[self.freq_counter])
+        #     if self.link_uri_flying[-10:] == 'A0A0A0A0A4':
+        #         freq_list = [10,0,6,0]
+        #         cf.param.set_value('sound.freq', freq_list[self.freq_counter])
+        #     if self.link_uri_flying[-10:] == 'A0A0A0A0A5':
+        #         freq_list = [6,7,10,0]
+        #         cf.param.set_value('sound.freq', freq_list[self.freq_counter])
+        #     if self.link_uri_flying[-10:] == 'A0A0A0A0A6':
+        #         freq_list = [6,8,11,0]
+        #         cf.param.set_value('sound.freq', freq_list[self.freq_counter])
+        #     if self.link_uri_flying[-10:] == 'A0A0A0A0A7':
+        #         freq_list = [12,0,6,19]
+        #         cf.param.set_value('sound.freq', freq_list[self.freq_counter])
+
+        if self.isTraining:
+            self.current_freq += 1
+        else:
+            self.current_freq = self.starting_freq
+        freq_list = [0, 0, 0, 0]
+        # cf.param.set_value('sound.freq', 0)
+        if self.freq_counter >= (len(freq_list) - 1):
+            self.freq_counter = 0
+        else:
+            self.freq_counter += 1
+        if self.link_uri_flying[-10:] == 'A0A0A0A0A3':
+            freq_list = [10, 0, 7, 6]
+            cf.param.set_value('sound.freq', freq_list[self.freq_counter] + self.current_freq)
+        if self.link_uri_flying[-10:] == 'A0A0A0A0A4':
+            freq_list = [10, 0, 6, 0]
+            cf.param.set_value('sound.freq', freq_list[self.freq_counter] + self.current_freq)
+        if self.link_uri_flying[-10:] == 'A0A0A0A0A5':
+            freq_list = [6, 7, 10, 0]
+            cf.param.set_value('sound.freq', freq_list[self.freq_counter] + self.current_freq)
+        if self.link_uri_flying[-10:] == 'A0A0A0A0A6':
+            freq_list = [6, 8, 11, 0]
+            cf.param.set_value('sound.freq', freq_list[self.freq_counter] + self.current_freq)
+        if self.link_uri_flying[-10:] == 'A0A0A0A0A7':
+            freq_list = [12, 0, 6, 19]
+            cf.param.set_value('sound.freq', freq_list[self.freq_counter] + self.current_freq)
+
     def _logging_error_L(self, log_conf, msg):
         """Callback from the log layer when an error occurs"""
 
@@ -614,6 +681,9 @@ class HTTYD(Tab, HTTYD_tab_class):
         logger.debug("Crazyflie '_cf_R' connected to {}".format(link_uri))
         # Gui
         self.cfStatus_R = ': connected'
+
+        self._helper_R.param.set_value('sound.effect', 12)
+        self._helper_R.param.set_value('sound.freq', 0)
 
         self.t4 = threading.Thread(target=self.flight_logger, args=(self._helper_R, 'cf_pos_R',link_uri))
         self.t4.start()
@@ -638,6 +708,8 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         if self._cf_R == None:
             self._cf_R = self._helper_R
+
+        self.sound_controller(self._cf_R)
 
     def _logging_error_R(self, log_conf, msg):
         """Callback from the log layer when an error occurs"""
@@ -685,16 +757,18 @@ class HTTYD(Tab, HTTYD_tab_class):
             with open(filename, 'w') as f:
                 f.write(json.dumps(self.accepted_positions))
 
-    def check_hand_position(self, lh_pos, cf_pos, rh_pos):
+    def check_hand_position(self, lh_pos, cf_pos, rh_pos, save):
         if not self.isUnlocked:
             # print('not unlocked')
             if self.train_hand_position(lh_pos, cf_pos, rh_pos) is True:
                 self.isTraining = True
-                # print('training loop number', len(self.diff_dict['diff_Lx']))
+                print('training loop number', len(self.diff_dict['diff_Lx']))
                 if len(self.diff_dict['diff_Lx']) > self.max_training_loops:
                     print('unlocking')
                     self.isUnlocked = True
-                    self.save_accepted_position()
+                    self.isTraining = False
+                    if save == 1:
+                        self.save_accepted_position()
             # ie if train_hand_position is False and you have more than 1 data point
             # ie ie dont clear the diff_dict unless you have more than x readings with high variance
             elif len(self.diff_dict['diff_Lx']) > 10:
@@ -1013,6 +1087,7 @@ class HTTYD(Tab, HTTYD_tab_class):
                 self._event.wait()
 
                 if self.flight_mode == FlightModeStates.LAND:
+                    self.isTraining = False
                     if self.cf_pos.is_valid():
                         spin += self.spin_rate
                         self.initial_land_height -= .001
@@ -1021,6 +1096,7 @@ class HTTYD(Tab, HTTYD_tab_class):
                                      self.current_goal_pos.y, self.initial_land_height, yaw = spin))
 
                 elif self.flight_mode == FlightModeStates.FOLLOW:
+                    self.isTraining = False
                     self.isUnlocked = True
                     if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
                         self.valid_cf_pos_L = self.cf_pos_L
@@ -1057,6 +1133,7 @@ class HTTYD(Tab, HTTYD_tab_class):
                     self.send_setpoint(self.current_goal_pos)
 
                 elif self.flight_mode == FlightModeStates.LIFT:
+                    self.isTraining = False
                     if self.cf_pos.is_valid():
                         lift_height = self.floor_height + 1
                         spin += self.spin_rate
@@ -1075,18 +1152,21 @@ class HTTYD(Tab, HTTYD_tab_class):
                                 self.switch_flight_mode(FlightModeStates.HOVERING)
 
                 elif self.flight_mode == FlightModeStates.HOVERING:
-                    # assigned to local object as we will be reducing it when training is true
+                    self.isTraining = False
                     self.isUnlocked = False
+                    # assigned to local object as we will be reducing it when training is true
                     spin += self.spin_rate
                     if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
                         self.valid_cf_pos_L = self.cf_pos_L
                         self.valid_cf_pos_R = self.cf_pos_R
                     if self.valid_cf_pos_L.distance_to(self.valid_cf_pos) < 1 and \
                             self.valid_cf_pos_R.distance_to(self.valid_cf_pos_R) < 1:
-                        self.check_hand_position(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R)
+                        # if save = 0 do not save.
+                        save = 1
+                        self.check_hand_position(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R, save)
                         if self.isTraining is True:
                             spin_slow_down -= (self.spin_rate/self.max_training_loops)
-                            print('spin rate', spin_slow_down)
+                            # print('spin rate', spin_slow_down)
                             spin += spin_slow_down
                         else:
                             spin_slow_down = 0
@@ -1096,6 +1176,16 @@ class HTTYD(Tab, HTTYD_tab_class):
                     self.send_setpoint(Position(self.current_goal_pos.x, self.current_goal_pos.y, self.current_goal_pos.z, yaw=spin))
 
                 elif self.flight_mode == FlightModeStates.GROUNDED:
+                    self.isTraining = False
+                    self.isUnlocked = False
+                    if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
+                        self.valid_cf_pos_L = self.cf_pos_L
+                        self.valid_cf_pos_R = self.cf_pos_R
+                    if self.valid_cf_pos_L.distance_to(self.valid_cf_pos) < 1 and \
+                            self.valid_cf_pos_R.distance_to(self.valid_cf_pos_R) < 1:
+                        # if save = 0 do not save.
+                        save = 0
+                        self.check_hand_position(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R, save)
                     pass  # If gounded, the control is switched back to gamepad
 
                 time.sleep(0.001)
