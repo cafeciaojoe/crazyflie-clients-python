@@ -143,7 +143,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         super(HTTYD, self).__init__(*args)
         self.setupUi(self)
 
-        self.server = SocketManager(self, server = True, port=5050)
+        # self.server = SocketManager(self, server = True, port=5050)
 
         self._machine = QStateMachine()
         self._setup_states()
@@ -527,8 +527,8 @@ class HTTYD(Tab, HTTYD_tab_class):
         self._ui_update_timer.start(200)
 
         # TODO check the thread does not hang here.
-        self.server.send_message(message = {'username':link_uri})
-        print('sent', link_uri, type(link_uri))
+        # self.server.send_message(message = {'username':link_uri})
+        # print('sent', link_uri, type(link_uri))
 
     def _disconnected(self, link_uri):
         """Callback for when the Crazyflie has been disconnected"""
@@ -666,6 +666,8 @@ class HTTYD(Tab, HTTYD_tab_class):
             freq_list = [12, 0, 6, 19]
             cf.param.set_value('sound.freq', freq_list[self.freq_counter] + self.current_freq)
 
+        # time.sleep(.001)
+
     def _logging_error_L(self, log_conf, msg):
         """Callback from the log layer when an error occurs"""
 
@@ -759,16 +761,18 @@ class HTTYD(Tab, HTTYD_tab_class):
 
     def check_hand_position(self, lh_pos, cf_pos, rh_pos, save):
         if not self.isUnlocked:
-            # print('not unlocked')
+            # print('764 self.isUnlocked = ', self.isUnlocked)
             if self.train_hand_position(lh_pos, cf_pos, rh_pos) is True:
                 self.isTraining = True
                 print('training loop number', len(self.diff_dict['diff_Lx']))
                 if len(self.diff_dict['diff_Lx']) > self.max_training_loops:
-                    print('unlocking')
+                    # print('769 self.isUnlocked = ', self.isUnlocked)
                     self.isUnlocked = True
                     self.isTraining = False
                     if save == 1:
                         self.save_accepted_position()
+                    print('resetting')
+                    self.diff_dict.clear()
             # ie if train_hand_position is False and you have more than 1 data point
             # ie ie dont clear the diff_dict unless you have more than x readings with high variance
             elif len(self.diff_dict['diff_Lx']) > 10:
@@ -1112,8 +1116,10 @@ class HTTYD(Tab, HTTYD_tab_class):
                         self.status = "Follow Mode"
 
                         if self.check_condition(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R, leeway_in) is False:
+                            # print('hover statement 1 called')
                             self.switch_flight_mode(FlightModeStates.HOVERING)
                     else:
+                        # print('hover statement 2 called')
                         self.switch_flight_mode(FlightModeStates.HOVERING)
 
                     #the edge of the map
@@ -1159,35 +1165,36 @@ class HTTYD(Tab, HTTYD_tab_class):
                     if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
                         self.valid_cf_pos_L = self.cf_pos_L
                         self.valid_cf_pos_R = self.cf_pos_R
-                    if self.valid_cf_pos_L.distance_to(self.valid_cf_pos) < 1 and \
-                            self.valid_cf_pos_R.distance_to(self.valid_cf_pos_R) < 1:
-                        # if save = 0 do not save.
-                        save = 1
-                        self.check_hand_position(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R, save)
-                        if self.isTraining is True:
-                            spin_slow_down -= (self.spin_rate/self.max_training_loops)
-                            # print('spin rate', spin_slow_down)
-                            spin += spin_slow_down
-                        else:
-                            spin_slow_down = 0
-                        if self.isUnlocked or self.check_condition(self.valid_cf_pos_L,self.valid_cf_pos,self.valid_cf_pos_R,leeway_in):
-                            spin_slow_down = 0
-                            self.switch_flight_mode(FlightModeStates.FOLLOW)
+                        if self.valid_cf_pos_L.distance_to(self.valid_cf_pos) < 1 and \
+                                self.valid_cf_pos_R.distance_to(self.valid_cf_pos) < 1:
+                            # if save = 0 do not save.
+                            save = 1
+                            self.check_hand_position(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R, save)
+                            if self.isTraining is True:
+                                spin_slow_down -= (self.spin_rate/self.max_training_loops)
+                                # print('spin rate', spin_slow_down)
+                                spin += spin_slow_down
+                            else:
+                                spin_slow_down = 0
+                            if self.isUnlocked or self.check_condition(self.valid_cf_pos_L,self.valid_cf_pos,self.valid_cf_pos_R,leeway_in):
+                                spin_slow_down = 0
+                                self.switch_flight_mode(FlightModeStates.FOLLOW)
                     self.send_setpoint(Position(self.current_goal_pos.x, self.current_goal_pos.y, self.current_goal_pos.z, yaw=spin))
 
                 elif self.flight_mode == FlightModeStates.GROUNDED:
+                    print('flying enabled = ',self.flying_enabled)
                     self.isTraining = False
                     self.isUnlocked = False
                     if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
                         self.valid_cf_pos_L = self.cf_pos_L
                         self.valid_cf_pos_R = self.cf_pos_R
-                    if self.valid_cf_pos_L.distance_to(self.valid_cf_pos) < 1 and \
-                            self.valid_cf_pos_R.distance_to(self.valid_cf_pos_R) < 1:
-                        # if save = 0 do not save.
-                        save = 0
-                        self.check_hand_position(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R, save)
-                    pass  # If gounded, the control is switched back to gamepad
-
+                        if self.valid_cf_pos_L.distance_to(self.valid_cf_pos) < 1 and \
+                                self.valid_cf_pos_R.distance_to(self.valid_cf_pos) < 1:
+                            # if save = 0 do not save.
+                            save = 0
+                            self.check_hand_position(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R, save)
+                        pass  # If gounded, the control is switched back to gamepad
+                    self._update_flight_status()
                 time.sleep(0.001)
 
         except Exception as err:
@@ -1319,12 +1326,12 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         logger.info('Switching Flight Mode to: %s', mode)
 
-        # send a message over the socket to start and stop logging
-        if str(mode) == "FlightModeStates.FOLLOW":
-            self.server.send_message(message={"flightmode" : 'follow'})
-        else:
-            self.server.send_message(message={"flightmode" : 'not follow'})
-            print('sending flight mode over socket', mode)
+        # # send a message over the socket to start and stop logging
+        # if str(mode) == "FlightModeStates.FOLLOW":
+        #     self.server.send_message(message={"flightmode" : 'follow'})
+        # else:
+        #     self.server.send_message(message={"flightmode" : 'not follow'})
+        #     print('sending flight mode over socket', mode)
 
     def send_setpoint(self, pos):
         # Wraps the send command to the crazyflie
