@@ -181,7 +181,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.floor_height = -1.25
         # divides the goal pos (x) by n eg x/n, x/n-1, x/n-2... x/1
         self.lift_rate = 3
-        self.spin_rate = .7
+        self.spin_rate = .5
         self.starting_freq = 0
         self.current_freq = 0
         self.freq_counter = 0
@@ -189,8 +189,8 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.flying_enabled = False
         self.switch_flight_mode(FlightModeStates.DISCONNECTED)
         self.path_pos_threshold = 0.2
-        self.max_training_variance = .05
-        self.max_training_loops = 1000
+        self.max_training_variance = .06
+        self.max_training_loops = 800
         self.isUnlocked = False
 
         self.charging = False
@@ -535,12 +535,8 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         logger.info("Crazyflie '_cf' disconnected from {}".format(link_uri))
         self.cfStatus = ': not connected'
-
-        self._cf_L.param.set_value('sound.freq', 0)
-        self._cf_R.param.set_value('sound.freq', 0)
-
-        self._helper_L.close_link()
-        self._helper_R.close_link()
+        # self._helper_L.close_link()
+        # self._helper_R.close_link()
 
         self._cf = None
 
@@ -764,7 +760,7 @@ class HTTYD(Tab, HTTYD_tab_class):
             # print('764 self.isUnlocked = ', self.isUnlocked)
             if self.train_hand_position(lh_pos, cf_pos, rh_pos) is True:
                 self.isTraining = True
-                print('training loop number', len(self.diff_dict['diff_Lx']))
+                # print('training loop number', len(self.diff_dict['diff_Lx']))
                 if len(self.diff_dict['diff_Lx']) > self.max_training_loops:
                     # print('769 self.isUnlocked = ', self.isUnlocked)
                     self.isUnlocked = True
@@ -851,6 +847,7 @@ class HTTYD(Tab, HTTYD_tab_class):
             print('file written')
 
     def check_condition(self, lh_pos, cf_pos, rh_pos, leeway):
+        # print('check cond has staretd')
 
         accepted_position_diffs = {}
 
@@ -882,8 +879,14 @@ class HTTYD(Tab, HTTYD_tab_class):
             self.end_of_wand_R.y = rh_pos.y + best_accepted_position[4]
             self.end_of_wand_R.z = rh_pos.z + best_accepted_position[5]
 
+            print('rh pos',rh_pos.z)
+            print('end of wand', self.end_of_wand_L.z)
+            # print(self.end_of_wand_R)
+
+            # print('check cond about to return true')
             return True
 
+        # print('check cond about to return false')
         return False
 
     def _flight_mode_land_entered(self):
@@ -893,31 +896,44 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.initial_land_height = self.current_goal_pos.z
         print('flight_mode_land_entered')
         self._event.set()
+        print('flight_mode_land_entered')
 
     def _flight_mode_follow_entered(self):
         self.current_goal_pos = self.valid_cf_pos
         logger.info('Entering follow mode')
         # TODO - RE INSTATE LAST WAND POS
         # self.last_valid_wand_pos = Position(0, 0, 1)
+        print('flight_mode_follow_entered')
         self._event.set()
+        print('flight_mode_follow_entered')
 
     def _flight_mode_lift_entered(self):
         self.current_goal_pos = self.valid_cf_pos
         logger.info('Trying to lift at: {}'.format(
             self.current_goal_pos))
+        print('flight_mode_lift_entered')
         self._event.set()
+        print('flight_mode_lift_entered')
 
     def _flight_mode_hovering_entered(self):
         self.current_goal_pos = self.valid_cf_pos
         logger.info('Hovering at: {}'.format(
             self.current_goal_pos))
+        print('flight_mode_hovering_entered')
         self._event.set()
+        print('flight_mode_hovering_entered')
 
     def _flight_mode_grounded_entered(self):
+        print('flight_mode_grounded_entered')
         self._event.set()
         print('flight_mode_grounded_entered')
 
     def _flight_mode_disconnected_entered(self):
+        self._cf_L.param.set_value('sound.freq', 0)
+        self._cf_R.param.set_value('sound.freq', 0)
+        self._cf_L.close_link()
+        self._cf_R.close_link()
+        print('flight_mode_disconnected_entered')
         self._event.set()
         print('flight_mode_disconnected_entered')
 
@@ -1013,6 +1029,9 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                                 self.cf_pos_dict[key] = Position(state_estimate[0], state_estimate[1], state_estimate[2],
                                                                  state_estimate[3], state_estimate[4], state_estimate[5])
+                                if key == 'cf_pos_L':
+                                    print(key,state_estimate[2],data_2['stateEstimate.z'])
+
                     # if any of the cf's leave the logger loop
 
                     if not cf:
@@ -1032,7 +1051,7 @@ class HTTYD(Tab, HTTYD_tab_class):
             spin_slow_down = self.spin_rate
             spin = 0
             # this adds a little room for the x y and z values.
-            leeway_in = .2
+            leeway_in = .175
             leeway_out = .2
             self.length_from_wand = .25
 
@@ -1043,6 +1062,7 @@ class HTTYD(Tab, HTTYD_tab_class):
                 self.cf_pos = self.cf_pos_dict['cf_pos']
                 self.cf_pos_L = self.cf_pos_dict['cf_pos_L']
                 self.cf_pos_R = self.cf_pos_dict['cf_pos_R']
+                # print(self.valid_cf_pos_R.z)
 
                 # print('start of the main control loop')
                 # Check that the position is valid and store it
@@ -1085,7 +1105,6 @@ class HTTYD(Tab, HTTYD_tab_class):
                         self.switch_flight_mode(FlightModeStates.LAND)
                         self.status = "Disabled - Low Power"
 
-
                 # Switch on the FlightModeState and take actions accordingly
                 # Wait so that any on state change actions are completed
                 self._event.wait()
@@ -1114,10 +1133,11 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                         self.current_goal_pos = Position(self.mid_pos.x, self.mid_pos.y, self.mid_pos.z, yaw=spin)
                         self.status = "Follow Mode"
-
+                        # print('pre check cond')
                         if self.check_condition(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R, leeway_in) is False:
                             # print('hover statement 1 called')
                             self.switch_flight_mode(FlightModeStates.HOVERING)
+                        # print('post check condition')
                     else:
                         # print('hover statement 2 called')
                         self.switch_flight_mode(FlightModeStates.HOVERING)
@@ -1141,7 +1161,7 @@ class HTTYD(Tab, HTTYD_tab_class):
                 elif self.flight_mode == FlightModeStates.LIFT:
                     self.isTraining = False
                     if self.cf_pos.is_valid():
-                        lift_height = self.floor_height + 1
+                        lift_height = self.floor_height + 1.1
                         spin += self.spin_rate
                         self.send_setpoint(
                             Position(self.current_goal_pos.x,
@@ -1182,7 +1202,6 @@ class HTTYD(Tab, HTTYD_tab_class):
                     self.send_setpoint(Position(self.current_goal_pos.x, self.current_goal_pos.y, self.current_goal_pos.z, yaw=spin))
 
                 elif self.flight_mode == FlightModeStates.GROUNDED:
-                    print('flying enabled = ',self.flying_enabled)
                     self.isTraining = False
                     self.isUnlocked = False
                     if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
@@ -1194,7 +1213,7 @@ class HTTYD(Tab, HTTYD_tab_class):
                             save = 0
                             self.check_hand_position(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R, save)
                         pass  # If gounded, the control is switched back to gamepad
-                    self._update_flight_status()
+                    # self._update_flight_status()
                 time.sleep(0.001)
 
         except Exception as err:
