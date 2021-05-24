@@ -181,7 +181,13 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.floor_height = -1.25
         # divides the goal pos (x) by n eg x/n, x/n-1, x/n-2... x/1
         self.lift_rate = 3
-        self.spin_rate = .5
+
+        # middle phenotype values, they get adjusted later in the set_phenotype function
+        self.max_training_loops = 1000
+        self.leeway = .2  # this adds a little room for the x y and z values.
+        self.spin_rate = .6
+        self.starting_height = 1
+
         self.starting_freq = 0
         self.current_freq = 0
         self.freq_counter = 0
@@ -190,7 +196,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.switch_flight_mode(FlightModeStates.DISCONNECTED)
         self.path_pos_threshold = 0.2
         self.max_training_variance = .06
-        self.max_training_loops = 800
+
         self.isUnlocked = False
 
         self.charging = False
@@ -272,14 +278,14 @@ class HTTYD(Tab, HTTYD_tab_class):
         # Start these ui elements invisible
         self.batteryBar.setTextVisible(False)
 
-    def got_message(self, address ,data):
-        # address is given but not used
-        # Send the data to where you want it from here
-        print('callback', data)
-        pass
-
-    def ping(self):
-        return True
+    # def got_message(self, address ,data):
+    #     # address is given but not used
+    #     # Send the data to where you want it from here
+    #     print('callback', data)
+    #     pass
+    #
+    # def ping(self):
+    #     return True
 
     def _setup_states(self):
         parent_state = QState()
@@ -510,6 +516,7 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         # username is the URI for the drone
         self.link_uri_flying = link_uri
+        self.set_phenotypes()
         self.load_accepted_positions()
 
 
@@ -606,64 +613,6 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         self.sound_controller(self._cf_L)
 
-    def sound_controller(self,cf):
-        # if self.isTraining:
-        #     self.current_freq += 1
-        #     cf.param.set_value('sound.freq',self.current_freq)
-        # else:
-        #     self.current_freq = self.starting_freq
-        #     freq_list = [0,0,0,0]
-        #     # cf.param.set_value('sound.freq', 0)
-        #     if self.freq_counter >= (len(freq_list)-1):
-        #         self.freq_counter = 0
-        #     else:
-        #         self.freq_counter += 1
-        #     if self.link_uri_flying[-10:] == 'A0A0A0A0A3':
-        #         freq_list = [10,0,7,6]
-        #         # print(freq_list[self.freq_counter])
-        #         print(self.freq_counter)
-        #         cf.param.set_value('sound.freq', freq_list[self.freq_counter])
-        #     if self.link_uri_flying[-10:] == 'A0A0A0A0A4':
-        #         freq_list = [10,0,6,0]
-        #         cf.param.set_value('sound.freq', freq_list[self.freq_counter])
-        #     if self.link_uri_flying[-10:] == 'A0A0A0A0A5':
-        #         freq_list = [6,7,10,0]
-        #         cf.param.set_value('sound.freq', freq_list[self.freq_counter])
-        #     if self.link_uri_flying[-10:] == 'A0A0A0A0A6':
-        #         freq_list = [6,8,11,0]
-        #         cf.param.set_value('sound.freq', freq_list[self.freq_counter])
-        #     if self.link_uri_flying[-10:] == 'A0A0A0A0A7':
-        #         freq_list = [12,0,6,19]
-        #         cf.param.set_value('sound.freq', freq_list[self.freq_counter])
-
-        if self.isTraining:
-            self.current_freq += 1
-        else:
-            self.current_freq = self.starting_freq
-        freq_list = [0, 0, 0, 0]
-        # cf.param.set_value('sound.freq', 0)
-        if self.freq_counter >= (len(freq_list) - 1):
-            self.freq_counter = 0
-        else:
-            self.freq_counter += 1
-        if self.link_uri_flying[-10:] == 'A0A0A0A0A3':
-            freq_list = [10, 0, 7, 6]
-            cf.param.set_value('sound.freq', freq_list[self.freq_counter] + self.current_freq)
-        if self.link_uri_flying[-10:] == 'A0A0A0A0A4':
-            freq_list = [10, 0, 6, 0]
-            cf.param.set_value('sound.freq', freq_list[self.freq_counter] + self.current_freq)
-        if self.link_uri_flying[-10:] == 'A0A0A0A0A5':
-            freq_list = [6, 7, 10, 0]
-            cf.param.set_value('sound.freq', freq_list[self.freq_counter] + self.current_freq)
-        if self.link_uri_flying[-10:] == 'A0A0A0A0A6':
-            freq_list = [6, 8, 11, 0]
-            cf.param.set_value('sound.freq', freq_list[self.freq_counter] + self.current_freq)
-        if self.link_uri_flying[-10:] == 'A0A0A0A0A7':
-            freq_list = [12, 0, 6, 19]
-            cf.param.set_value('sound.freq', freq_list[self.freq_counter] + self.current_freq)
-
-        # time.sleep(.001)
-
     def _logging_error_L(self, log_conf, msg):
         """Callback from the log layer when an error occurs"""
 
@@ -743,6 +692,67 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.cf_R_Roll.setText(("%0.2f" % self.cf_pos_R.roll))
         self.cf_R_Pitch.setText(("%0.2f" % self.cf_pos_R.pitch))
         self.cf_R_Yaw.setText(("%0.2f" % self.cf_pos_R.yaw))
+
+    def set_phenotypes(self):
+        # JULIAN AMBER
+        if self.link_uri_flying[-10:] == 'A0A0A0A0A3':
+            self.max_training_loops = 900
+            self.leeway = .18
+            self.spin_rate = .5
+            self.starting_height = .9
+        # MARGOT GREEN
+        if self.link_uri_flying[-10:] == 'A0A0A0A0A4':
+            self.max_training_loops = 800
+            self.leeway = .16
+            self.spin_rate = .4
+            self.starting_height = .8
+        # NINA BROWN
+        if self.link_uri_flying[-10:] == 'A0A0A0A0A5':
+            self.max_training_loops = 1200
+            self.leeway = .24
+            self.spin_rate = .8
+            self.starting_height = 1.2
+        # TIM FIST BLUE
+        if self.link_uri_flying[-10:] == 'A0A0A0A0A6':
+            self.max_training_loops = 1000
+            self.leeway = .2
+            self.spin_rate = .6
+            self.starting_height = 1
+        # TIM GOODSON AQUA
+        if self.link_uri_flying[-10:] == 'A0A0A0A0A7':
+            self.max_training_loops = 1100
+            self.leeway = .22
+            self.spin_rate = .7
+            self.starting_height = 1.2
+
+    def sound_controller(self,cf):
+        if self.isTraining:
+            self.current_freq += 1
+        else:
+            self.current_freq = self.starting_freq
+        freq_list = [0, 0, 0, 0]
+        # cf.param.set_value('sound.freq', 0)
+        if self.freq_counter >= (len(freq_list) - 1):
+            self.freq_counter = 0
+        else:
+            self.freq_counter += 1
+        if self.link_uri_flying[-10:] == 'A0A0A0A0A3':
+            freq_list = [10, 0, 7, 6]
+            cf.param.set_value('sound.freq', freq_list[self.freq_counter] + self.current_freq)
+        if self.link_uri_flying[-10:] == 'A0A0A0A0A4':
+            freq_list = [10, 0, 6, 0]
+            cf.param.set_value('sound.freq', freq_list[self.freq_counter] + self.current_freq)
+        if self.link_uri_flying[-10:] == 'A0A0A0A0A5':
+            freq_list = [6, 7, 10, 0]
+            cf.param.set_value('sound.freq', freq_list[self.freq_counter] + self.current_freq)
+        if self.link_uri_flying[-10:] == 'A0A0A0A0A6':
+            freq_list = [6, 8, 11, 0]
+            cf.param.set_value('sound.freq', freq_list[self.freq_counter] + self.current_freq)
+        if self.link_uri_flying[-10:] == 'A0A0A0A0A7':
+            freq_list = [12, 0, 6, 19]
+            cf.param.set_value('sound.freq', freq_list[self.freq_counter] + self.current_freq)
+
+        # time.sleep(.001)
 
     def load_accepted_positions(self):
     #     https://stackoverflow.com/questions/36965507/writing-a-dictionary-to-a-text-file
@@ -879,14 +889,8 @@ class HTTYD(Tab, HTTYD_tab_class):
             self.end_of_wand_R.y = rh_pos.y + best_accepted_position[4]
             self.end_of_wand_R.z = rh_pos.z + best_accepted_position[5]
 
-            print('rh pos',rh_pos.z)
-            print('end of wand', self.end_of_wand_L.z)
-            # print(self.end_of_wand_R)
-
-            # print('check cond about to return true')
             return True
 
-        # print('check cond about to return false')
         return False
 
     def _flight_mode_land_entered(self):
@@ -896,7 +900,6 @@ class HTTYD(Tab, HTTYD_tab_class):
         self.initial_land_height = self.current_goal_pos.z
         print('flight_mode_land_entered')
         self._event.set()
-        print('flight_mode_land_entered')
 
     def _flight_mode_follow_entered(self):
         self.current_goal_pos = self.valid_cf_pos
@@ -905,7 +908,6 @@ class HTTYD(Tab, HTTYD_tab_class):
         # self.last_valid_wand_pos = Position(0, 0, 1)
         print('flight_mode_follow_entered')
         self._event.set()
-        print('flight_mode_follow_entered')
 
     def _flight_mode_lift_entered(self):
         self.current_goal_pos = self.valid_cf_pos
@@ -913,7 +915,6 @@ class HTTYD(Tab, HTTYD_tab_class):
             self.current_goal_pos))
         print('flight_mode_lift_entered')
         self._event.set()
-        print('flight_mode_lift_entered')
 
     def _flight_mode_hovering_entered(self):
         self.current_goal_pos = self.valid_cf_pos
@@ -921,12 +922,10 @@ class HTTYD(Tab, HTTYD_tab_class):
             self.current_goal_pos))
         print('flight_mode_hovering_entered')
         self._event.set()
-        print('flight_mode_hovering_entered')
 
     def _flight_mode_grounded_entered(self):
         print('flight_mode_grounded_entered')
         self._event.set()
-        print('flight_mode_grounded_entered')
 
     def _flight_mode_disconnected_entered(self):
         self._cf_L.param.set_value('sound.freq', 0)
@@ -935,7 +934,6 @@ class HTTYD(Tab, HTTYD_tab_class):
         self._cf_R.close_link()
         print('flight_mode_disconnected_entered')
         self._event.set()
-        print('flight_mode_disconnected_entered')
 
     def flight_logger(self, cf, key, link_uri):
         try:
@@ -1029,11 +1027,7 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                                 self.cf_pos_dict[key] = Position(state_estimate[0], state_estimate[1], state_estimate[2],
                                                                  state_estimate[3], state_estimate[4], state_estimate[5])
-                                if key == 'cf_pos_L':
-                                    print(key,state_estimate[2],data_2['stateEstimate.z'])
-
                     # if any of the cf's leave the logger loop
-
                     if not cf:
                         break
         finally:
@@ -1050,9 +1044,6 @@ class HTTYD(Tab, HTTYD_tab_class):
             position_hold_timer = 0
             spin_slow_down = self.spin_rate
             spin = 0
-            # this adds a little room for the x y and z values.
-            leeway_in = .175
-            leeway_out = .2
             self.length_from_wand = .25
 
             # The main flight control loop, the behaviour
@@ -1062,7 +1053,6 @@ class HTTYD(Tab, HTTYD_tab_class):
                 self.cf_pos = self.cf_pos_dict['cf_pos']
                 self.cf_pos_L = self.cf_pos_dict['cf_pos_L']
                 self.cf_pos_R = self.cf_pos_dict['cf_pos_R']
-                # print(self.valid_cf_pos_R.z)
 
                 # print('start of the main control loop')
                 # Check that the position is valid and store it
@@ -1133,13 +1123,9 @@ class HTTYD(Tab, HTTYD_tab_class):
 
                         self.current_goal_pos = Position(self.mid_pos.x, self.mid_pos.y, self.mid_pos.z, yaw=spin)
                         self.status = "Follow Mode"
-                        # print('pre check cond')
-                        if self.check_condition(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R, leeway_in) is False:
-                            # print('hover statement 1 called')
+                        if self.check_condition(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R, self.leeway) is False:
                             self.switch_flight_mode(FlightModeStates.HOVERING)
-                        # print('post check condition')
                     else:
-                        # print('hover statement 2 called')
                         self.switch_flight_mode(FlightModeStates.HOVERING)
 
                     #the edge of the map
@@ -1161,13 +1147,12 @@ class HTTYD(Tab, HTTYD_tab_class):
                 elif self.flight_mode == FlightModeStates.LIFT:
                     self.isTraining = False
                     if self.cf_pos.is_valid():
-                        lift_height = self.floor_height + 1.1
+                        lift_height = self.floor_height + self.starting_height
                         spin += self.spin_rate
                         self.send_setpoint(
                             Position(self.current_goal_pos.x,
                                      self.current_goal_pos.y, (lift_height / self.lift_rate)))
                         self.lift_rate -= .01
-                        # print(self.lift_rate)
 
                         if self.lift_rate < 1:
                             self.lift_rate = 1
@@ -1192,11 +1177,10 @@ class HTTYD(Tab, HTTYD_tab_class):
                             self.check_hand_position(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R, save)
                             if self.isTraining is True:
                                 spin_slow_down -= (self.spin_rate/self.max_training_loops)
-                                # print('spin rate', spin_slow_down)
                                 spin += spin_slow_down
                             else:
                                 spin_slow_down = 0
-                            if self.isUnlocked or self.check_condition(self.valid_cf_pos_L,self.valid_cf_pos,self.valid_cf_pos_R,leeway_in):
+                            if self.isUnlocked or self.check_condition(self.valid_cf_pos_L,self.valid_cf_pos,self.valid_cf_pos_R,self.leeway):
                                 spin_slow_down = 0
                                 self.switch_flight_mode(FlightModeStates.FOLLOW)
                     self.send_setpoint(Position(self.current_goal_pos.x, self.current_goal_pos.y, self.current_goal_pos.z, yaw=spin))
@@ -1300,21 +1284,37 @@ class HTTYD(Tab, HTTYD_tab_class):
                                 "z: {}".format(max_x - min_x,
                                                max_y - min_y,
                                                max_z - min_z))
+                    if (max_x - min_x) == 0 and (
+                            max_y - min_y) == 0 and (
+                            max_z - min_z) == 0:
+                        # place drone on a flat surface and wait for sabilization before connecting
+                        if cf == self._helper.cf:
+                            self.cfStatus = (
+                                ': drone did not stabilize before radio connection'
+                            )
+                        if cf == self._helper_L:
+                            self.cfStatus_L = (
+                                ': drone did not stabilize before radio connection'
+                            )
+                        if cf == self._helper_R:
+                            self.cfStatus_R = (
+                                ': drone did not stabilize before radio connection'
+                            )
+                    else:
+                        if cf == self._helper.cf:
+                            self.cfStatus = (
+                                ': stabilised'
+                            )
+                        if cf == self._helper_L:
+                            self.cfStatus_L = (
+                                ': stabilised'
+                            )
+                        if cf == self._helper_R:
+                            self.cfStatus_R = (
+                                ': stabilised'
+                            )
 
-                    if cf == self._helper.cf:
-                        self.cfStatus = (
-                            ': stabilised'
-                        )
-                    if cf == self._helper_L:
-                        self.cfStatus_L = (
-                            ': stabilised'
-                        )
-                    if cf == self._helper_R:
-                        self.cfStatus_R = (
-                            ': stabilised'
-                        )
-
-                    break
+                        break
 
     def reset_estimator(self, cf):
         # Reset the kalman filter
