@@ -1180,7 +1180,9 @@ class HTTYD(Tab, HTTYD_tab_class):
                                 spin += spin_slow_down
                             else:
                                 spin_slow_down = 0
-                            if self.isUnlocked or self.check_condition(self.valid_cf_pos_L,self.valid_cf_pos,self.valid_cf_pos_R,self.leeway):
+                            # halved the leeway when in follow mode so that you don't accidentally snap into an already trained position
+                            # that is different to what you are trying to trian.
+                            if self.isUnlocked or self.check_condition(self.valid_cf_pos_L,self.valid_cf_pos,self.valid_cf_pos_R,(self.leeway*.75)):
                                 spin_slow_down = 0
                                 self.switch_flight_mode(FlightModeStates.FOLLOW)
                     self.send_setpoint(Position(self.current_goal_pos.x, self.current_goal_pos.y, self.current_goal_pos.z, yaw=spin))
