@@ -1170,8 +1170,8 @@ class HTTYD(Tab, HTTYD_tab_class):
                     if self.cf_pos_L.is_valid() and self.cf_pos_R.is_valid():
                         self.valid_cf_pos_L = self.cf_pos_L
                         self.valid_cf_pos_R = self.cf_pos_R
-                        if self.valid_cf_pos_L.distance_to(self.valid_cf_pos) < 1 and \
-                                self.valid_cf_pos_R.distance_to(self.valid_cf_pos) < 1:
+                        if self.valid_cf_pos_L.distance_to(self.valid_cf_pos) < 2 and \
+                                self.valid_cf_pos_R.distance_to(self.valid_cf_pos) < 2:
                             # if save = 0 do not save.
                             save = 1
                             self.check_hand_position(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R, save)
