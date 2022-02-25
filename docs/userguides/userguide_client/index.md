@@ -15,8 +15,7 @@ functionality.
 This page uses the terms
 [roll/pitch/yaw](http://en.wikipedia.org/wiki/Flight_dynamics_(fixed_wing_aircraft))
 extensively. For that to make any sense for a quadcopter we need to know
-where the front is,
-[Crazyflie 2.X](https://www.bitcraze.io/documentation/system/).
+where the front is, so you will need to know [Crazyflie's coordinate system](https://www.bitcraze.io/documentation/system/platform/cf2-coordinate-system/)
 
 ---
 
@@ -57,7 +56,6 @@ For more info on LED indicators etc. have a look at the [Crazyflie 2.X](https://
 3. Battery and link quality (from 0% to 100%)
 4. Tabs with specific functionality (see below for details)
 5. The selected and used input interface
-6. Command based flight control, allow controlled flight if, and only if, a positioning deck such as the [Flow deck](https://store.bitcraze.io/collections/decks/products/flow-deck-v2), the [Loco deck](https://store.bitcraze.io/collections/decks/products/loco-positioning-deck) or the [Lighthouse deck](https://store.bitcraze.io/collections/decks/products/lighthouse-positioning-deck) is present.
 
 ### Tabs
 
@@ -84,6 +82,7 @@ client.
 ### Firmware upgrade
 
 For updating the Crazyflie firmware you can keep being connected to the crazyflie. This will open up a seperate dialog that will guide you through the process.
+Please note that you need to use a Crazyradio dongle to connect to the Crazyflie when doing firmware upgrades. Upgrading using USB is not possible.
 
 ![CFclient bootloading](/docs/images/firmware-upgrade.png)
 
@@ -208,7 +207,7 @@ width="300"}
 
 Follow the instructions to detect the axis or button that you would like
 to map to the functionality. If you would like to map the functionality
-to two axis (like right/left sholder-button) then select *Combined axis
+to two axis (like right/left shoulder-button) then select *Combined axis
 detection* and follow the instructions.
 
 Go though all the functionality you would like to map by pressing the

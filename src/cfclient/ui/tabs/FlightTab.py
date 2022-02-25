@@ -207,25 +207,10 @@ class FlightTab(Tab, flight_tab_class):
 
         self.uiSetupReady()
 
-        self.ratePidRadioButton.clicked.connect(
-            lambda enabled:
-            self.helper.cf.param.set_value("flightmode.ratepid",
-                                           str(enabled)))
-
-        self.angularPidRadioButton.clicked.connect(
-            lambda enabled:
-            self.helper.cf.param.set_value("flightmode.ratepid",
-                                           str(not enabled)))
-
         self._led_ring_headlight.clicked.connect(
             lambda enabled:
             self.helper.cf.param.set_value("ring.headlightEnable",
                                            str(enabled)))
-
-        self.helper.cf.param.add_update_callback(
-            group="flightmode", name="ratepid",
-            cb=(lambda name, checked:
-                self.ratePidRadioButton.setChecked(eval(checked))))
 
         self.helper.cf.param.add_update_callback(
             group="ring", name="headlightEnable",
@@ -422,6 +407,15 @@ class FlightTab(Tab, flight_tab_class):
                 'You need a positioning deck to use Command Based Flight'
             )
             self.commanderBox.setEnabled(False)
+            return
+
+        # To prevent conflicting commands from the controller and the flight panel
+        if JoystickReader().available_devices():
+            self.commanderBox.setToolTip(
+                'Cant use both an controller and Command Based Flight'
+            )
+            self.commanderBox.setEnabled(False)
+            return
 
     def connected(self, linkURI):
         # MOTOR & THRUST
@@ -438,7 +432,7 @@ class FlightTab(Tab, flight_tab_class):
             x=0.0, y=0.0, z=0.0,
             default_velocity=0.3,
             default_height=0.5,
-            controller=PositionHlCommander.CONTROLLER_PID
+            controller=int(self.helper.cf.param.get_value('stabilizer.controller'))
         )
 
         try:
@@ -575,11 +569,8 @@ class FlightTab(Tab, flight_tab_class):
     def updateEmergencyStop(self, emergencyStop):
         if emergencyStop:
             self.setMotorLabelsEnabled(False)
-            self.emergency_stop_label.setText(
-                self.emergencyStopStringWithText("Kill switch active"))
         else:
             self.setMotorLabelsEnabled(True)
-            self.emergency_stop_label.setText("")
 
     def flightmodeChange(self, item):
         Config().set("flightmode", str(self.flightModeCombo.itemText(item)))

@@ -44,15 +44,18 @@ else:
 # except:
 #     pass
 
-if sys.version_info < (3, 6):
-    raise "must use python 3.6 or greater"
+if sys.version_info < (3, 7):
+    raise "must use python 3.7 or greater"
 
 
 def relative(lst, base=''):
     return list(map(lambda x: base + os.path.basename(x), lst))
 
 
-VERSION = get_version()
+try:
+    VERSION = get_version()
+except Exception:
+    VERSION = None
 
 if not VERSION and not os.path.isfile('src/cfclient/version.json'):
     sys.stderr.write("Git is required to install from source.\n" +
@@ -70,18 +73,9 @@ else:
 platform_requires = []
 platform_dev_requires = ['pre-commit']
 if sys.platform == 'win32' or sys.platform == 'darwin':
-    platform_requires.extend(['pysdl2~=0.9.6', 'pysdl2-dll==2.0.14.post1'])
+    platform_requires.extend(['pysdl2~=0.9.6', 'pysdl2-dll==2.0.16'])
 if sys.platform == 'win32':
     platform_dev_requires.extend(['cx_freeze==5.1.1', 'jinja2==2.10.3'])
-
-# Only install the latest pyqt for Linux and Mac
-# On Windows, the latest version that does not have performance problems
-# is 5.12
-if sys.platform == 'win32':
-    platform_requires += ['pyqt5~=5.12.0']
-else:
-    platform_requires += ['pyqt5~=5.15.0']
-
 
 package_data = {
     'cfclient.ui':  relative(glob('src/cfclient/ui/*.ui')),
@@ -129,16 +123,18 @@ setup(
         ],
     },
 
-    install_requires=platform_requires + ['cflib~=0.1.14.2',
+    install_requires=platform_requires + ['cflib>=0.1.17.1',
                                           'appdirs~=1.4.0',
-                                          'pyzmq~=19.0',
+                                          'pyzmq~=22.3',
                                           'pyqtgraph~=0.11',
                                           'PyYAML~=5.3',
-                                          'quamash~=0.6.1',
-                                          'qtm~=2.0.2',
-                                          'numpy~=1.19.2',
-                                          'vispy~=0.6.6',
-                                          'pyserial~=3.5'],
+                                          'asyncqt~=0.8.0',
+                                          'qtm~=2.1.1',
+                                          'numpy>=1.20,<1.25',
+                                          'vispy~=0.9.0',
+                                          'pyserial~=3.5',
+                                          'pyqt5~=5.15.0',
+                                          'PyQt5-sip>=12.9.0'],
 
     # List of dev dependencies
     # You can install them by running

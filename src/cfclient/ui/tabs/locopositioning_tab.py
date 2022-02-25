@@ -37,8 +37,8 @@ from collections import namedtuple
 import time
 from PyQt5 import uic
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
-from PyQt5.QtGui import QMessageBox
-from PyQt5.QtGui import QLabel
+from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtWidgets import QLabel
 
 import cfclient
 from cfclient.ui.tab import Tab
@@ -171,7 +171,7 @@ class Plot3dLps(scene.SceneCanvas):
             [base_len, -hw, 0],
             [base_len, -w, 0],
             [0, -w, 0]],
-            width=1.0, color='red', parent=parent)
+            width=1.0, color='red', parent=parent, marker_size=0.0)
 
         # Y-axis
         scene.visuals.LinePlot([
@@ -182,7 +182,7 @@ class Plot3dLps(scene.SceneCanvas):
             [-hw, base_len, 0],
             [-w, base_len, 0],
             [-w, 0, 0]],
-            width=1.0, color='green', parent=parent)
+            width=1.0, color='green', parent=parent, marker_size=0.0)
 
         # Z-axis
         scene.visuals.LinePlot([
@@ -193,7 +193,7 @@ class Plot3dLps(scene.SceneCanvas):
             [0, -hw, base_len],
             [0, -w, base_len],
             [0, -w, 0]],
-            width=1.0, color='blue', parent=parent)
+            width=1.0, color='blue', parent=parent, marker_size=0.0)
 
     def update_data(self, anchors, pos, display_mode):
         self._cf.set_data(pos=np.array([pos]), face_color=self.POSITION_BRUSH)
@@ -296,8 +296,7 @@ class AnchorStateMachine:
     def poll(self):
         if not self._waiting_for_response:
             self._next_step()
-            self._request_step()
-            self._waiting_for_response = True
+            self._waiting_for_response = self._request_step()
 
     def _next_step(self):
         self._current_step += 1
@@ -305,13 +304,21 @@ class AnchorStateMachine:
             self._current_step = 0
 
     def _request_step(self):
+        result = True
+
         action = AnchorStateMachine.STEPS[self._current_step]
         if action == AnchorStateMachine.GET_ACTIVE:
             self._mem.update_active_id_list(self._cb_active_id_list_updated)
         elif action == AnchorStateMachine.GET_IDS:
             self._mem.update_id_list(self._cb_id_list_updated)
         else:
-            self._mem.update_data(self._cb_data_updated)
+            if self._mem.nr_of_anchors > 0:
+                # Only request anchor data if we actually have anchors, otherwise the callback will never be called
+                self._mem.update_data(self._cb_data_updated)
+            else:
+                result = False
+
+        return result
 
     def _get_mem(self, mem_sub):
         mem = mem_sub.get_mems(MemoryElement.TYPE_LOCO2)
@@ -467,7 +474,7 @@ class LocoPositioningTab(Tab, locopositioning_tab_class):
         self.is_loco_deck_active = False
 
         self._graph_timer = QTimer()
-        self._graph_timer.setInterval(1000 / self.FPS)
+        self._graph_timer.setInterval(int(1000 / self.FPS))
         self._graph_timer.timeout.connect(self._update_graphics)
         self._graph_timer.start()
 

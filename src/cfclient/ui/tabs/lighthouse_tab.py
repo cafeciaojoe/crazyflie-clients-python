@@ -34,7 +34,7 @@ import logging
 
 from PyQt5 import uic
 from PyQt5.QtCore import pyqtSignal, QTimer
-from PyQt5.QtGui import QMessageBox
+from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtWidgets import QFileDialog
 
 import cfclient
@@ -199,7 +199,7 @@ class Plot3dLighthouse(scene.SceneCanvas):
             [base_len, -hw, 0],
             [base_len, -w, 0],
             [0, -w, 0]],
-            width=1.0, color='red', parent=parent)
+            width=1.0, color='red', parent=parent, marker_size=0.0)
 
         # Y-axis
         scene.visuals.LinePlot([
@@ -210,7 +210,7 @@ class Plot3dLighthouse(scene.SceneCanvas):
             [-hw, base_len, 0],
             [-w, base_len, 0],
             [-w, 0, 0]],
-            width=1.0, color='green', parent=parent)
+            width=1.0, color='green', parent=parent, marker_size=0.0)
 
         # Z-axis
         scene.visuals.LinePlot([
@@ -221,7 +221,7 @@ class Plot3dLighthouse(scene.SceneCanvas):
             [0, -hw, base_len],
             [0, -w, base_len],
             [0, -w, 0]],
-            width=1.0, color='blue', parent=parent)
+            width=1.0, color='blue', parent=parent, marker_size=0.0)
 
     def update_cf_pose(self, position, rot):
         if not self._cf:
@@ -305,8 +305,7 @@ class LighthouseTab(Tab, lighthouse_tab_class):
         self._connected_signal.connect(self._connected)
         self._disconnected_signal.connect(self._disconnected)
         self._log_error_signal.connect(self._logging_error)
-        self._cb_param_to_detect_lighthouse_deck_signal.connect(
-            self._cb_param_to_detect_lighthouse_deck)
+        self._cb_param_to_detect_lighthouse_deck_signal.connect(self._cb_param_to_detect_lighthouse_deck)
         self._status_report_signal.connect(self._status_report_received)
         self._new_system_config_written_to_cf_signal.connect(self._new_system_config_written_to_cf)
         self._geometry_read_signal.connect(self._geometry_read_cb)
@@ -345,7 +344,7 @@ class LighthouseTab(Tab, lighthouse_tab_class):
         self._lh_status = self.STATUS_NOT_RECEIVING
 
         self._graph_timer = QTimer()
-        self._graph_timer.setInterval(1000 / self.FPS)
+        self._graph_timer.setInterval(int(1000 / self.FPS))
         self._graph_timer.timeout.connect(self._update_graphics)
         self._graph_timer.start()
 
@@ -629,7 +628,7 @@ class LighthouseTab(Tab, lighthouse_tab_class):
                 temp_set = self._bs_stats[stats_id]
 
                 if bs in temp_set:
-                    # If the status bar for calibration data is handled, have an intermeddiate status
+                    # If the status bar for calibration data is handled, have an intermediate status
                     # else just have red or green.
                     if stats_indicator_id == 2:
                         label.setStyleSheet(STYLE_BLUE_BACKGROUND)
@@ -651,7 +650,7 @@ class LighthouseTab(Tab, lighthouse_tab_class):
                     label.setToolTip('')
 
     def _load_sys_config_button_clicked(self):
-        names = QFileDialog.getOpenFileName(self, 'Open file', self._helper.current_folder, "*.yaml;*.*")
+        names = QFileDialog.getOpenFileName(self, 'Open file', self._helper.current_folder, "*.yaml;;*.*")
 
         if names[0] == '':
             return
@@ -673,7 +672,7 @@ class LighthouseTab(Tab, lighthouse_tab_class):
         self._save_sys_config(self._lh_geos, calibs, system_type)
 
     def _save_sys_config(self, geos, calibs, system_type):
-        names = QFileDialog.getSaveFileName(self, 'Save file', self._helper.current_folder, "*.yaml;*.*")
+        names = QFileDialog.getSaveFileName(self, 'Save file', self._helper.current_folder, "*.yaml;;*.*")
 
         if names[0] == '':
             return

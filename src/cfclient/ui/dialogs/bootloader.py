@@ -176,11 +176,17 @@ class BootloaderDialog(QtWidgets.QWidget, service_dialog_class):
         elif (state == self.UIState.FW_CONNECTED):
             self._cold_boot_error_message = None
             self.resetButton.setEnabled(False)
-            self.programButton.setEnabled(True)
-            self.setStatusLabel("Connected in firmware mode")
             self.coldBootButton.setEnabled(False)
-            self.setSourceSelectionUiEnabled(True)
             self._helper.connectivity_manager.set_enable(True)
+
+            if self._helper.cf.link_uri.startswith("usb://"):
+                self.programButton.setEnabled(False)
+                self.setStatusLabel("Connected using USB")
+                self.setSourceSelectionUiEnabled(False)
+            else:
+                self.programButton.setEnabled(True)
+                self.setStatusLabel("Connected in firmware mode")
+                self.setSourceSelectionUiEnabled(True)
         elif (state == self.UIState.FW_SCANNING):
             self._cold_boot_error_message = None
             self.resetButton.setEnabled(False)
@@ -242,7 +248,7 @@ class BootloaderDialog(QtWidgets.QWidget, service_dialog_class):
                 self.firmwareDropdown.addItem(widget_name)
 
     def release_zip_downloaded(self, release_name, release_path):
-        """ Callback when a release is succesfully downloaded and
+        """ Callback when a release is successfully downloaded and
             save to release_path.
         """
         self.downloadStatus.setText('Downloaded')
@@ -361,8 +367,6 @@ class CrazyloadThread(QThread):
         self._terminate_flashing = False
 
         self._bl = Bootloader()
-        self._bl.progress_cb = self.statusChanged.emit
-        self._bl.terminate_flashing_cb = lambda: self._terminate_flashing
 
         self._cf = crazyflie
 
@@ -386,20 +390,7 @@ class CrazyloadThread(QThread):
         self.connectingSignal.emit()
 
         try:
-            success = self._bl.start_bootloader(warm_boot=False)
-            if not success:
-                self.failed_signal.emit("Could not connect to bootloader")
-            else:
-                self.connectedSignal.emit()
-        except Exception as e:
-            self.failed_signal.emit("{}".format(e))
-
-    def rebootToBootloader(self):
-        self._bl.clink = self._cf.link_uri
-        self._cf.close_link()
-
-        try:
-            success = self._bl.start_bootloader(warm_boot=True)
+            success = self._bl.start_bootloader(warm_boot=False, cf=None)
             if not success:
                 self.failed_signal.emit("Could not connect to bootloader")
             else:
@@ -408,18 +399,22 @@ class CrazyloadThread(QThread):
             self.failed_signal.emit("{}".format(e))
 
     def programAction(self, filename, mcu_to_flash):
-
-        if self._boot_mode == self.WARM_BOOT:
-            self.rebootToBootloader()
-
         targets = {}
         if mcu_to_flash:
             targets[mcu_to_flash] = ("fw",)
         try:
             self._terminate_flashing = False
-            self._bl.flash(str(filename), targets)
+            self._bl.clink = self._cf.link_uri
+            self._bl.flash_full(self._cf,
+                                str(filename),
+                                self._boot_mode is self.WARM_BOOT,
+                                targets,
+                                None,
+                                self.statusChanged.emit,
+                                lambda: self._terminate_flashing)
             self.programmed.emit(True)
-        except Exception:
+        except Exception as e:
+            self.failed_signal.emit("{}".format(e))
             self.programmed.emit(False)
 
     def terminate_flashing(self):
@@ -446,8 +441,7 @@ class FirmwareDownloader(QThread):
         self._qtsignal_get_release = qtsignal_get_release
 
         self._tempDirectory = tempfile.TemporaryDirectory()
-        self._filepath = os.path.join(self._tempDirectory.name,
-                                      'tmp.zip')
+
         self.moveToThread(self)
 
     def get_firmware_releases(self):
@@ -494,27 +488,28 @@ class FirmwareDownloader(QThread):
         """ Downloads the given release and calls the callback signal
             if successful.
         """
+        filepath = os.path.join(self._tempDirectory.name, release_name.split(' ')[-1])
         try:
             # Check if we have an old file saved and if so, ensure it's a valid
             # zipfile and then call signal
-            with open(self._filepath, 'rb') as f:
+            with open(filepath, 'rb') as f:
                 previous_release = zipfile.ZipFile(f)
                 # testzip returns None if it's OK.
                 if previous_release.testzip() is None:
                     logger.info('Using same firmware-release file at'
-                                '%s' % self._filepath)
-                    signal.emit(release_name, self._filepath)
+                                '%s' % filepath)
+                    signal.emit(release_name, filepath)
                     return
         except FileNotFoundError:
             try:
                 # Fetch the file with a new web request and save it to
                 # a temporary file.
                 with urlopen(url) as response:
-                    with open(self._filepath, 'wb') as release_file:
+                    with open(filepath, 'wb') as release_file:
                         release_file.write(response.read())
                     logger.info('Created temporary firmware-release file at'
-                                '%s' % self._filepath)
-                    signal.emit(release_name, self._filepath)
+                                '%s' % filepath)
+                    signal.emit(release_name, filepath)
             except URLError:
                 logger.warning('Failed to make web request to get requested'
                                ' firmware-release')

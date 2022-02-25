@@ -6,12 +6,16 @@ It implements the user interface and high-level control (for example gamepad han
 The communication with Crazyflie and the implementation of the CRTP protocol to control the Crazyflie is handled by the [cflib](https://github.com/bitcraze/crazyflie-lib-python) project.
 
 ## Installation
-See the [installation instructions](docs/installation/install.md) in the github docs folder.
+See the [installation instructions](docs/installation/install.md) in the GitHub docs folder.
 
 ## Official Documentation
 
 Check out the [Bitcraze crazyflie-client-python documentation](https://www.bitcraze.io/documentation/repository/crazyflie-clients-python/master/) on our website.
 
 ## Contribute
+Go to the [contribute page](https://www.bitcraze.io/contribute/) on our website to learn more.
 
-Everyone is encouraged to contribute to the CrazyFlie library by forking the Github repository and making a pull request or opening an issue.
+### Test code for contribution
+Run the automated build locally to test your code
+
+	python3 tools/build/build
