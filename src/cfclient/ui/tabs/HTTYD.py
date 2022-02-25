@@ -178,7 +178,8 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         # initial flight modes
         # depends on how far off the ground the cf is calibrated
-        self.floor_height = -1.25
+        # if the calibration is .5m off the floor then self.floor_height = -.5
+        self.floor_height = -.52
         # divides the goal pos (x) by n eg x/n, x/n-1, x/n-2... x/1
         self.lift_rate = 3
 
