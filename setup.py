@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import subprocess
-from subprocess import PIPE, Popen
 from setuptools import setup, find_packages
 from glob import glob
 import json
@@ -9,6 +7,8 @@ import codecs
 import sys
 import os
 import platform
+
+from gitversion import get_version
 
 if sys.argv[1] in ('build', 'bdist_msi', 'bdist_mac', 'bdist_dmg',
                    'install_exe'):
@@ -44,37 +44,18 @@ else:
 # except:
 #     pass
 
-if sys.version_info < (3, 5):
-    raise "must use python 3.5 or greater"
-
-
-# Recover version from Git.
-# Returns None if git is not installed or if we are running outside of the git
-# tree
-def get_version():
-    try:
-        process = Popen(["git", "describe", "--tags"], stdout=PIPE)
-        (output, err) = process.communicate()
-        process.wait()
-    except OSError:
-        return None
-
-    if process.returncode != 0:
-        return None
-
-    version = output.strip().decode("UTF-8")
-
-    if subprocess.call(["git", "diff-index", "--quiet", "HEAD"]) != 0:
-        version += "_modified"
-
-    return version
+if sys.version_info < (3, 7):
+    raise "must use python 3.7 or greater"
 
 
 def relative(lst, base=''):
     return list(map(lambda x: base + os.path.basename(x), lst))
 
 
-VERSION = get_version()
+try:
+    VERSION = get_version()
+except Exception:
+    VERSION = None
 
 if not VERSION and not os.path.isfile('src/cfclient/version.json'):
     sys.stderr.write("Git is required to install from source.\n" +
@@ -90,20 +71,11 @@ else:
         f.write(json.dumps({'version': VERSION}))
 
 platform_requires = []
-platform_dev_requires = []
+platform_dev_requires = ['pre-commit']
 if sys.platform == 'win32' or sys.platform == 'darwin':
-    platform_requires = ['pysdl2~=0.9.6']
+    platform_requires.extend(['pysdl2~=0.9.6', 'pysdl2-dll==2.0.16'])
 if sys.platform == 'win32':
-    platform_dev_requires = ['cx_freeze==5.1.1', 'jinja2==2.10.3']
-
-# Only install the latest pyqt for Linux and Mac
-# On Windows, the latest version that does not have performance problems
-# is 5.12
-if sys.platform == 'win32':
-    platform_requires += ['pyqt5~=5.12.0']
-else:
-    platform_requires += ['pyqt5~=5.15.0']
-
+    platform_dev_requires.extend(['cx_freeze==5.1.1', 'jinja2==2.10.3'])
 
 package_data = {
     'cfclient.ui':  relative(glob('src/cfclient/ui/*.ui')),
@@ -151,19 +123,18 @@ setup(
         ],
     },
 
-    install_requires=platform_requires + ['cflib',
+    install_requires=platform_requires + ['cflib>=0.1.17.1',
                                           'appdirs~=1.4.0',
-                                          'pyzmq~=19.0',
+                                          'pyzmq~=22.3',
                                           'pyqtgraph~=0.11',
                                           'PyYAML~=5.3',
-                                          'quamash~=0.6.1',
-                                          'qtm~=2.0.2',
-                                          'numpy~=1.19.2',
-                                          'vispy~=0.6.6'],
-
-    dependency_links=[
-        'git+https://github.com/bitcraze/crazyflie-lib-python@7860e10a636cd6bba7053899d916954e94754838#egg=cflib'
-    ],
+                                          'asyncqt~=0.8.0',
+                                          'qtm~=2.1.1',
+                                          'numpy>=1.20,<1.25',
+                                          'vispy~=0.9.0',
+                                          'pyserial~=3.5',
+                                          'pyqt5~=5.15.0',
+                                          'PyQt5-sip>=12.9.0'],
 
     # List of dev dependencies
     # You can install them by running

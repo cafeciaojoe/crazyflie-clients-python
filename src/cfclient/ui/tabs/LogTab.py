@@ -59,7 +59,14 @@ class LogTab(Tab, param_tab_class):
         self.cf = helper.cf
 
         # Init the tree widget
-        self.logTree.setHeaderLabels(['Name', 'ID', 'Unpack', 'Storage'])
+        self.logTree.setAlternatingRowColors(True)
+        if helper.mainUI.isDark:
+            self.logTree.setStyleSheet('QTreeWidget { alternate-background-color: #3c3c3c; }')
+        else:
+            self.logTree.setStyleSheet('QTreeWidget { alternate-background-color: #e9e9e9; }')
+
+        self.logTree.setHeaderLabels(['Name', 'ID', 'Unpack', 'Storage', 'Description'])
+        self.logTree.header().resizeSection(0, 150)
         self.logTree.setSortingEnabled(True)
         self.logTree.sortItems(0, Qt.AscendingOrder)
 
@@ -72,7 +79,10 @@ class LogTab(Tab, param_tab_class):
 
     @pyqtSlot('QString')
     def disconnected(self, linkname):
-        self.logTree.clear()
+        root = self.logTree.invisibleRootItem()
+        for i in range(root.childCount()):
+            item = root.child(i)
+            item.setFlags(Qt.NoItemFlags)
 
     @pyqtSlot(str)
     def connected(self, linkURI):
@@ -80,15 +90,34 @@ class LogTab(Tab, param_tab_class):
 
         toc = self.cf.log.toc
 
-        for group in list(toc.toc.keys()):
+        for row_idx, group in enumerate(list(toc.toc.keys())):
             groupItem = QtWidgets.QTreeWidgetItem()
             groupItem.setData(0, Qt.DisplayRole, group)
+
             for param in list(toc.toc[group].keys()):
                 item = QtWidgets.QTreeWidgetItem()
                 item.setData(0, Qt.DisplayRole, param)
                 item.setData(1, Qt.DisplayRole, toc.toc[group][param].ident)
                 item.setData(2, Qt.DisplayRole, toc.toc[group][param].pytype)
                 item.setData(3, Qt.DisplayRole, toc.toc[group][param].ctype)
+
+                if cfclient.log_param_doc is not None:
+                    try:
+                        log_groups = cfclient.log_param_doc['logs'][group]
+                        log_variable = log_groups['variables'][param]
+                        item.setData(4, Qt.DisplayRole, log_variable['short_desc'])
+                    except:  # noqa
+                        pass
+
                 groupItem.addChild(item)
 
             self.logTree.addTopLevelItem(groupItem)
+
+            if cfclient.log_param_doc is not None:
+                try:
+                    log_groups = cfclient.log_param_doc['logs'][group]
+                    label = QtWidgets.QLabel(log_groups['desc'])
+                    label.setWordWrap(True)
+                    self.logTree.setItemWidget(groupItem, 4, label)
+                except:  # noqa
+                    pass

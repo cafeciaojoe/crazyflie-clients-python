@@ -798,7 +798,7 @@ class QualisysTab(Tab, qualisys_tab_class):
 
             # Parse the returned xml
             xml = ET.fromstring(result)
-            self.qtm_6DoF_labels = [label.text for label in xml.iter('Name')]
+            self.qtm_6DoF_labels = [label.text.strip() for index, label in enumerate(xml.findall('*/Body/Name'))]
 
             # Make all names lowercase
             self.qtm_6DoF_labels = [x.lower() for x in self.qtm_6DoF_labels]
@@ -1259,7 +1259,7 @@ class QualisysTab(Tab, qualisys_tab_class):
                         self.switch_flight_mode(FlightModeStates.PATH)
 
                 elif self.flight_mode == FlightModeStates.GROUNDED:
-                    pass  # If gounded, the control is switched back to gamepad
+                    pass  # If grounded, the control is switched back to gamepad
 
                 time.sleep(0.001)
 
