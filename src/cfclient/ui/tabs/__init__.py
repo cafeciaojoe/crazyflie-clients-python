@@ -60,7 +60,7 @@ available = [
     # PlotTab,
     # LocoPositioningTab,
     #LighthouseTab,
-    # LighthouseViewer,
+    ## LighthouseViewer,
     # QualisysTab,
     # LogClientTab,
     HTTYD,

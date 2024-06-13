@@ -630,7 +630,8 @@ class MainUI(QtWidgets.QMainWindow, main_window_class):
         self._update_ui_state()
 
     def closeEvent(self, event):
-        os.system("killall -9 'Google Chrome'")
+        # used for crudely killing the pose estimation running in chrome.
+        #os.system("killall -9 'Google Chrome'")
         SocketManager.run = False
         self.hide()
         self.cf.close_link()

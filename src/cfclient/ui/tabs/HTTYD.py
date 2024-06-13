@@ -179,7 +179,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         # initial flight modes
         # depends on how far off the ground the cf is calibrated
         # if the calibration is .5m off the floor then self.floor_height = -.5
-        self.floor_height = -.52
+        self.floor_height = -1.14
         # divides the goal pos (x) by n eg x/n, x/n-1, x/n-2... x/1
         self.lift_rate = 3
 
@@ -697,32 +697,32 @@ class HTTYD(Tab, HTTYD_tab_class):
     def set_phenotypes(self):
         # JULIAN AMBER
         if self.link_uri_flying[-10:] == 'A0A0A0A0A3':
-            self.max_training_loops = 900
-            self.leeway = .18
+            self.max_training_loops = 900/3
+            self.leeway = .18+.05
             self.spin_rate = .5
-            self.starting_height = .9
+            self.starting_height = 1.5
         # MARGOT GREEN
         if self.link_uri_flying[-10:] == 'A0A0A0A0A4':
-            self.max_training_loops = 800
-            self.leeway = .16
+            self.max_training_loops = 800/3
+            self.leeway = .16+.05
             self.spin_rate = .4
-            self.starting_height = .8
+            self.starting_height = 1.5
         # NINA BROWN
         if self.link_uri_flying[-10:] == 'A0A0A0A0A5':
-            self.max_training_loops = 1200
-            self.leeway = .24
+            self.max_training_loops = 1200/3
+            self.leeway = .24+.05
             self.spin_rate = .8
-            self.starting_height = 1.2
+            self.starting_height = 1.5
         # TIM FIST BLUE
         if self.link_uri_flying[-10:] == 'A0A0A0A0A6':
-            self.max_training_loops = 1000
-            self.leeway = .2
+            self.max_training_loops = 1000/3
+            self.leeway = .2+.05
             self.spin_rate = .6
-            self.starting_height = 1
+            self.starting_height = 1.5
         # TIM GOODSON AQUA
         if self.link_uri_flying[-10:] == 'A0A0A0A0A7':
-            self.max_training_loops = 1100
-            self.leeway = .22
+            self.max_training_loops = 1100/3
+            self.leeway = .22+.05
             self.spin_rate = .7
             self.starting_height = 1.2
 
@@ -1173,7 +1173,7 @@ class HTTYD(Tab, HTTYD_tab_class):
                         self.valid_cf_pos_R = self.cf_pos_R
                         if self.valid_cf_pos_L.distance_to(self.valid_cf_pos) < 2 and \
                                 self.valid_cf_pos_R.distance_to(self.valid_cf_pos) < 2:
-                            # if save = 0 do not save.
+                            # if save = 0 do not save. learning on / off
                             save = 1
                             self.check_hand_position(self.valid_cf_pos_L, self.valid_cf_pos, self.valid_cf_pos_R, save)
                             if self.isTraining is True:
@@ -1361,6 +1361,7 @@ class HTTYD(Tab, HTTYD_tab_class):
             if pos.z <= self.floor_height:
                 self._cf.commander.send_stop_setpoint()
                 self.switch_flight_mode(FlightModeStates.GROUNDED)
+                print(pos.z,'floor trigger')
             else:
                 self._cf.commander.send_position_setpoint(pos.x, pos.y, pos.z, pos.yaw)
 

@@ -171,7 +171,7 @@ class Plot3dLighthouse(scene.SceneCanvas):
 
         self.freeze()
 
-        plane_size = 10
+        plane_size = 100
         scene.visuals.Plane(
             width=plane_size,
             height=plane_size,
