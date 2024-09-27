@@ -697,34 +697,34 @@ class HTTYD(Tab, HTTYD_tab_class):
     def set_phenotypes(self):
         # JULIAN AMBER
         if self.link_uri_flying[-10:] == 'A0A0A0A0A3':
-            self.max_training_loops = 900/3
+            self.max_training_loops = 900/4
             self.leeway = .18+.05
             self.spin_rate = .5
-            self.starting_height = 1.5
+            self.starting_height = 1.45
         # MARGOT GREEN
         if self.link_uri_flying[-10:] == 'A0A0A0A0A4':
-            self.max_training_loops = 800/3
+            self.max_training_loops = 800/4
             self.leeway = .16+.05
             self.spin_rate = .4
-            self.starting_height = 1.5
+            self.starting_height = 1.45
         # NINA BROWN
         if self.link_uri_flying[-10:] == 'A0A0A0A0A5':
-            self.max_training_loops = 1200/3
+            self.max_training_loops = 1200/4
             self.leeway = .24+.05
             self.spin_rate = .8
-            self.starting_height = 1.5
+            self.starting_height = 1.45
         # TIM FIST BLUE
         if self.link_uri_flying[-10:] == 'A0A0A0A0A6':
-            self.max_training_loops = 1000/3
+            self.max_training_loops = 1000/4
             self.leeway = .2+.05
             self.spin_rate = .6
-            self.starting_height = 1.5
+            self.starting_height = 1.45
         # TIM GOODSON AQUA
         if self.link_uri_flying[-10:] == 'A0A0A0A0A7':
-            self.max_training_loops = 1100/3
+            self.max_training_loops = 1100/4
             self.leeway = .22+.05
             self.spin_rate = .7
-            self.starting_height = 1.2
+            self.starting_height = 1.45
 
     def sound_controller(self,cf):
         if self.isTraining:
@@ -1134,14 +1134,14 @@ class HTTYD(Tab, HTTYD_tab_class):
                         self.current_goal_pos.x = -1
                     if (self.current_goal_pos.x > 1):
                         self.current_goal_pos.x = 1
-                    if (self.current_goal_pos.y < -1.4):
-                        self.current_goal_pos.y = -1.4
-                    if (self.current_goal_pos.y > 1.4):
-                        self.current_goal_pos.y = 1.4
+                    if (self.current_goal_pos.y < -1):
+                        self.current_goal_pos.y = -1
+                    if (self.current_goal_pos.y > 1):
+                        self.current_goal_pos.y = 1
                     # if (self.current_goal_pos.z < -1.2):
                     #     self.current_goal_pos.z = -1.2
-                    if (self.current_goal_pos.z > 2):
-                        self.current_goal_pos.z = 2
+                    if (self.current_goal_pos.z > 1.5):
+                        self.current_goal_pos.z = 1.5
 
                     self.send_setpoint(self.current_goal_pos)
 
