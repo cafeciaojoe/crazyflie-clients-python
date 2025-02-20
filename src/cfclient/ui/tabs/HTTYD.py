@@ -179,7 +179,7 @@ class HTTYD(Tab, HTTYD_tab_class):
         # initial flight modes
         # depends on how far off the ground the cf is calibrated
         # if the calibration is .5m off the floor then self.floor_height = -.5
-        self.floor_height = -1.14
+        self.floor_height = -1.2
         # divides the goal pos (x) by n eg x/n, x/n-1, x/n-2... x/1
         self.lift_rate = 3
 
@@ -552,6 +552,9 @@ class HTTYD(Tab, HTTYD_tab_class):
 
         self._ui_update_timer.stop()
 
+        # clear the accepted positions so that they dont cary over between demonstration sessions. 
+        self.accepted_positions = {}
+
     def _param_updated(self, name, value):
         """Callback when the registered parameter get's updated"""
 
@@ -700,31 +703,31 @@ class HTTYD(Tab, HTTYD_tab_class):
             self.max_training_loops = 900/4
             self.leeway = .18+.05
             self.spin_rate = .5
-            self.starting_height = 1.45
+            self.starting_height = 1.55
         # MARGOT GREEN
         if self.link_uri_flying[-10:] == 'A0A0A0A0A4':
             self.max_training_loops = 800/4
             self.leeway = .16+.05
             self.spin_rate = .4
-            self.starting_height = 1.45
+            self.starting_height = 1.55
         # NINA BROWN
         if self.link_uri_flying[-10:] == 'A0A0A0A0A5':
             self.max_training_loops = 1200/4
             self.leeway = .24+.05
             self.spin_rate = .8
-            self.starting_height = 1.45
+            self.starting_height = 1.55
         # TIM FIST BLUE
         if self.link_uri_flying[-10:] == 'A0A0A0A0A6':
             self.max_training_loops = 1000/4
             self.leeway = .2+.05
             self.spin_rate = .6
-            self.starting_height = 1.45
+            self.starting_height = 1.55
         # TIM GOODSON AQUA
         if self.link_uri_flying[-10:] == 'A0A0A0A0A7':
             self.max_training_loops = 1100/4
             self.leeway = .22+.05
             self.spin_rate = .7
-            self.starting_height = 1.45
+            self.starting_height = 1.55
 
     def sound_controller(self,cf):
         if self.isTraining:
